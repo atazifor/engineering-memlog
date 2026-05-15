@@ -30,7 +30,7 @@ object per line, shared across every project. See [SCHEMA.md](SCHEMA.md).
 **2. A mandate.** A standing instruction in your agent's always-loaded
 rules file (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`). It tells the agent
 to *search* the log before non-trivial work, and *append* a lesson after
-it. See [CLAUDE-snippet.md](CLAUDE-snippet.md) — copy it verbatim.
+it. See [MANDATE.md](MANDATE.md) — copy it verbatim.
 
 **3. A CLI.** `memlog` — `add`, `search`, `list`. ~200 lines of Python,
 standard library only.
@@ -76,7 +76,7 @@ mandate tells it to.
 
 ## Set up the discipline
 
-Copy the block in [CLAUDE-snippet.md](CLAUDE-snippet.md) into your
+Copy the block in [MANDATE.md](MANDATE.md) into your
 project's agent rules file. That single paragraph is what turns a logging
 *tool* into a logging *habit* — an agent will reliably do what a human
 won't.
@@ -102,4 +102,4 @@ CI and lockfile failures, API-contract bugs.
 
 ## License
 
-TBD.
+[MIT](LICENSE).
