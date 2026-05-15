@@ -8,8 +8,6 @@ Your agent figures something out the hard way. The session ends, and that knowle
 
 That's the whole thing. One JSONL file, a ~200-line script, and one paragraph of instructions for your agent.
 
-For the longer story — the reframe, why it isn't a product, how it compares to Claude Code's native auto-memory — see the [write-up on Medium](LINK).
-
 ## How it works
 
 Three pieces. The division is the whole idea.
