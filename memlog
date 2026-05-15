@@ -108,6 +108,12 @@ def print_jsonl(entries: List[Dict[str, Any]]) -> None:
         print(json.dumps(entry, ensure_ascii=False))
 
 
+def meta_line(*pairs: Any) -> str:
+    """Render '  key=value key=value' for the human view, dropping any pair
+    whose value is empty so a blank field never shows as a bare 'key='."""
+    return "  " + " ".join(f"{k}={v}" for k, v in pairs if str(v).strip() != "")
+
+
 def cmd_add(args: argparse.Namespace) -> int:
     payload = load_json_payload(args.json)
     entry = validate_entry(payload)
@@ -157,7 +163,7 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     for entry in matches:
         print(f"- {entry.get('timestamp', '')} | {entry.get('title', '')}")
-        print(f"  repo={entry.get('repo', '')} service={entry.get('service', '')} env={entry.get('environment', '')}")
+        print(meta_line(("repo", entry.get("repo", "")), ("service", entry.get("service", "")), ("env", entry.get("environment", ""))))
         print(f"  tags={', '.join(entry.get('tags', []))}")
         print(f"  problem={entry.get('problem', '')}")
         print()
@@ -178,7 +184,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
     for entry in entries:
         print(f"- {entry.get('timestamp', '')} | {entry.get('title', '')}")
-        print(f"  repo={entry.get('repo', '')} confidence={entry.get('confidence', '')} status={entry.get('status', '')}")
+        print(meta_line(("repo", entry.get("repo", "")), ("confidence", entry.get("confidence", "")), ("status", entry.get("status", ""))))
         print(f"  tags={', '.join(entry.get('tags', []))}")
         print()
     return 0
