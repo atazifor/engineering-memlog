@@ -1,51 +1,30 @@
 # engineering-memlog
 
-**Durable engineering memory for AI coding agents.** A discipline, and a
-~200-line implementation.
+A shared engineering log your AI coding agent writes to — and reads from — across sessions.
 
-Your AI coding agent is brilliant and completely amnesiac. Every session
-starts from zero and re-derives things it — or another session — already
-worked out last week. `memlog` is a small, opinionated practice that
-captures what an agent learns, so the next session doesn't pay for it again.
+Your agent figures something out the hard way. The session ends, and that knowledge is gone. A week later a different session re-derives the same fix from scratch.
 
-It is not a product, not a service, and not trying to be. One JSONL file,
-one ~200-line script, one paragraph of instructions for your agent.
+`memlog` fixes that. Before finishing a task, the agent asks itself whether it learned something worth keeping. If yes, it appends a structured entry — problem, cause, fix, prevention — to a single shared log. Next time the symptom shows up, the agent searches the log and skips the re-derivation.
 
-## The idea
+That's the whole thing. One JSONL file, a ~200-line script, and one paragraph of instructions for your agent.
 
-Git records *what changed*. Code comments record *what the code does*.
-Neither records the **operational lesson** — what broke, why it was
-possible, and the rule that prevents it next time. That knowledge is
-exactly what an agent generates constantly and retains never.
+For the longer story — the reframe, why it isn't a product, how it compares to Claude Code's native auto-memory — see the [write-up on Medium](LINK).
 
-The reframe that makes this work: **the log is not documentation for
-humans — it is prior knowledge for the next agent.** Every lesson written
-once is a lesson no future session has to rediscover.
+## How it works
 
-## How it works — three parts
+Three pieces. The division is the whole idea.
 
-**1. A structured log.** One append-only file, `entries.jsonl` — one JSON
-object per line, shared across every project. See [SCHEMA.md](SCHEMA.md).
+**1. A structured log.** One append-only file, `entries.jsonl` — one JSON object per line, shared across every project. See [SCHEMA.md](SCHEMA.md).
 
-**2. A mandate.** A standing instruction in your agent's always-loaded
-rules file (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`). It tells the agent
-to *search* the log before non-trivial work, and *append* a lesson after
-it. See [MANDATE.md](MANDATE.md) — copy it verbatim.
+**2. A mandate.** One paragraph in your agent's rules file (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`). It tells the agent to search the log before non-trivial work and append a lesson after. See [MANDATE.md](MANDATE.md) — copy it verbatim.
 
-**3. A CLI.** `memlog` — `add`, `search`, `list`. ~200 lines of Python,
-standard library only.
+**3. A CLI.** `memlog add`, `search`, `list`. ~200 lines of Python, standard library only.
 
-**The division is the whole idea.** The script is deliberately dumb: it
-appends a JSON line and greps the file. It has *zero* judgment. All the
-intelligence — what is worth logging, what never to log, when to search —
-lives in the mandate. That is why the script is small, and why it is
-replaceable: the file format is the contract, the Python is one
-implementation.
+The script is deliberately dumb: it appends a JSON line and greps the file. Zero judgment. All the intelligence — what's worth logging, what never to log, when to search — lives in the mandate. That's why the script is small, and why it's replaceable: the file format is the contract, the Python is one implementation.
 
 ## Install
 
-`memlog` is a single file. `python3` (3.8+) is the only requirement — no
-packages, no service.
+`python3` (3.8+) is the only requirement.
 
 ```bash
 git clone https://github.com/atazifor/engineering-memlog
@@ -54,9 +33,7 @@ chmod +x ~/.local/bin/memlog
 memlog --help
 ```
 
-The log lives at `~/.engineering-memlog/entries.jsonl` by default. Point
-it elsewhere — e.g. a path inside a repo, so a team can commit and share
-it — with `--file` or the `ENGINEERING_MEMLOG_FILE` environment variable.
+The log lives at `~/.engineering-memlog/entries.jsonl` by default. Override with `--file` or `ENGINEERING_MEMLOG_FILE` — point it inside a repo if you want a team to share one.
 
 ## Usage
 
@@ -71,34 +48,22 @@ memlog search "frozen-lockfile"
 memlog list --reverse
 ```
 
-In practice you rarely run `add` by hand — your agent does, because the
-mandate tells it to.
+In practice you rarely run `add` by hand. Your agent does, because the mandate tells it to.
 
 ## Set up the discipline
 
-Copy the block in [MANDATE.md](MANDATE.md) into your
-project's agent rules file. That single paragraph is what turns a logging
-*tool* into a logging *habit* — an agent will reliably do what a human
-won't.
+Copy the block in [MANDATE.md](MANDATE.md) into your agent's rules file. That paragraph is what turns a logging *tool* into a logging *habit* — an agent will reliably do what a human won't.
 
 ## What it isn't
 
-- **Not Claude Code's native auto-memory.** That saves free-form prose
-  about your preferences and project context, per project. This is
-  structured, engineering-incident-shaped, cross-project, and built to be
-  *queried* as much as read.
-- **Not a general agent-memory layer** like Mem0 or OpenMemory. Those are
-  broader and more capable. This is deliberately narrow: one schema, one
-  file, one concern — operational engineering knowledge.
+- **Not Claude Code's native auto-memory.** That saves free-form prose about your preferences and project context, per project. This is structured, engineering-incident-shaped, cross-project, and built to be queried as much as read.
+- **Not a general agent-memory layer** like Mem0 or OpenMemory. Those are broader and more capable. This is deliberately narrow: one schema, one file, one concern — operational engineering knowledge.
 
-The narrowness is the point. It is an opinion, expressed as 200 lines of
-code.
+The narrowness is the point. It's an opinion, expressed as 200 lines of code.
 
 ## Examples
 
-[examples/entries.jsonl](examples/entries.jsonl) — 12 real lessons
-(sanitized) from production work: Go / GORM gotchas, Next.js build traps,
-CI and lockfile failures, API-contract bugs.
+[examples/entries.jsonl](examples/entries.jsonl) — 12 real lessons (sanitized) from production work: Go / GORM gotchas, Next.js build traps, CI and lockfile failures, API-contract bugs.
 
 ## License
 
