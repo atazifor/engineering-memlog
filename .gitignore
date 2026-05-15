@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+# The live log lives outside the repo by default (~/.engineering-memlog/).
+# Ignore one here too, in case --file is pointed at the repo during testing.
+/entries.jsonl
+.engineering-memlog/

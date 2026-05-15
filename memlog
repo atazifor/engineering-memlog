@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""
+memlog — durable engineering memory for AI coding agents.
+
+A deliberately dumb tool: it appends a structured JSON entry to a single
+append-only log, and greps it back. All the judgment — what is worth
+logging — lives in your agent's rules file, not here. See README.md.
+
+Default data file: ~/.engineering-memlog/entries.jsonl
+Override per-call:  --file <path>
+Override globally:  ENGINEERING_MEMLOG_FILE=<path> in the environment.
+
+Stdlib only — no dependencies. Python 3.8+.
+"""
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
+
+DEFAULT_DATA_FILE = Path(
+    os.environ.get(
+        "ENGINEERING_MEMLOG_FILE",
+        str(Path.home() / ".engineering-memlog" / "entries.jsonl"),
+    )
+)
+
+REQUIRED_FIELDS = [
+    "title",
+    "problem",
+    "fix",
+    "cause",
+    "prevention",
+    "artifact",
+    "repo",
+    "service",
+    "environment",
+    "tags",
+    "confidence",
+    "status",
+    "source",
+]
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def load_json_payload(raw: str) -> Dict[str, Any]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON payload: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise SystemExit("Payload must be a JSON object.")
+    return payload
+
+
+def validate_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    missing = [field for field in REQUIRED_FIELDS if field not in entry]
+    if missing:
+        raise SystemExit(f"Missing required fields: {', '.join(missing)}")
+
+    if not isinstance(entry["tags"], list) or not all(isinstance(t, str) for t in entry["tags"]):
+        raise SystemExit("Field 'tags' must be a JSON array of strings.")
+
+    try:
+        entry["confidence"] = float(entry["confidence"])
+    except (TypeError, ValueError) as exc:
+        raise SystemExit("Field 'confidence' must be numeric.") from exc
+
+    if not 0.0 <= entry["confidence"] <= 1.0:
+        raise SystemExit("Field 'confidence' must be between 0.0 and 1.0.")
+
+    entry.setdefault("timestamp", utc_now_iso())
+    entry.setdefault("id", f"mem-{int(datetime.now(timezone.utc).timestamp())}")
+    return entry
+
+
+def append_entry(entry: Dict[str, Any], data_file: Path) -> None:
+    data_file.parent.mkdir(parents=True, exist_ok=True)
+    with data_file.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def iter_entries(data_file: Path):
+    if not data_file.exists():
+        return
+    with data_file.open("r", encoding="utf-8") as fh:
+        for line_no, line in enumerate(fh, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield line_no, json.loads(line)
+            except json.JSONDecodeError:
+                print(f"Skipping invalid JSON on line {line_no}", file=sys.stderr)
+
+
+def cmd_add(args: argparse.Namespace) -> int:
+    payload = load_json_payload(args.json)
+    entry = validate_entry(payload)
+    append_entry(entry, Path(args.file))
+    print(f"Appended memory entry: {entry['title']}")
+    return 0
+
+
+def entry_matches(entry: Dict[str, Any], needle: str) -> bool:
+    haystack_parts: List[str] = []
+    for key in [
+        "title",
+        "problem",
+        "fix",
+        "cause",
+        "prevention",
+        "artifact",
+        "repo",
+        "service",
+        "environment",
+        "status",
+        "source",
+    ]:
+        value = entry.get(key)
+        if isinstance(value, str):
+            haystack_parts.append(value)
+    haystack_parts.extend(entry.get("tags", []))
+    haystack = "\n".join(haystack_parts).lower()
+    return needle.lower() in haystack
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    data_file = Path(args.file)
+    matches = []
+    for _, entry in iter_entries(data_file) or []:
+        if entry_matches(entry, args.query):
+            matches.append(entry)
+
+    if not matches:
+        print("No matches found.")
+        return 0
+
+    for entry in matches[: args.limit]:
+        print(f"- {entry.get('timestamp', '')} | {entry.get('title', '')}")
+        print(f"  repo={entry.get('repo', '')} service={entry.get('service', '')} env={entry.get('environment', '')}")
+        print(f"  tags={', '.join(entry.get('tags', []))}")
+        print(f"  problem={entry.get('problem', '')}")
+        print()
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    data_file = Path(args.file)
+    entries = [entry for _, entry in iter_entries(data_file) or []]
+    if args.reverse:
+        entries = list(reversed(entries))
+    if args.limit:
+        entries = entries[: args.limit]
+
+    for entry in entries:
+        print(f"- {entry.get('timestamp', '')} | {entry.get('title', '')}")
+        print(f"  repo={entry.get('repo', '')} confidence={entry.get('confidence', '')} status={entry.get('status', '')}")
+        print(f"  tags={', '.join(entry.get('tags', []))}")
+        print()
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="memlog",
+        description="Durable engineering memory for AI coding agents (single cross-project log).",
+    )
+    parser.add_argument(
+        "--file",
+        default=str(DEFAULT_DATA_FILE),
+        help=(
+            "Path to the JSONL data file. "
+            f"Default: {DEFAULT_DATA_FILE} "
+            "(or set ENGINEERING_MEMLOG_FILE)."
+        ),
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    add_parser = subparsers.add_parser("add", help="Append one JSON entry")
+    add_parser.add_argument("--json", required=True, help="JSON object string for the memory entry")
+    add_parser.set_defaults(func=cmd_add)
+
+    search_parser = subparsers.add_parser("search", help="Keyword search entries")
+    search_parser.add_argument("query", help="Search text")
+    search_parser.add_argument("--limit", type=int, default=10)
+    search_parser.set_defaults(func=cmd_search)
+
+    list_parser = subparsers.add_parser("list", help="List entries")
+    list_parser.add_argument("--limit", type=int, default=20)
+    list_parser.add_argument("--reverse", action="store_true", help="Show newest first")
+    list_parser.set_defaults(func=cmd_list)
+
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
