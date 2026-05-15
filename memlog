@@ -4,7 +4,8 @@ memlog — durable engineering memory for AI coding agents.
 
 A deliberately dumb tool: it appends a structured JSON entry to a single
 append-only log, and greps it back. All the judgment — what is worth
-logging — lives in your agent's rules file, not here. See README.md.
+logging, and when to search — lives in your agent's rules file, not here.
+See README.md.
 
 Default data file: ~/.engineering-memlog/entries.jsonl
 Override per-call:  --file <path>
@@ -100,6 +101,13 @@ def iter_entries(data_file: Path):
                 print(f"Skipping invalid JSON on line {line_no}", file=sys.stderr)
 
 
+def print_jsonl(entries: List[Dict[str, Any]]) -> None:
+    """Emit entries as JSONL — one JSON object per line, same shape as the
+    log file itself. This is the agent-readable output mode."""
+    for entry in entries:
+        print(json.dumps(entry, ensure_ascii=False))
+
+
 def cmd_add(args: argparse.Namespace) -> int:
     payload = load_json_payload(args.json)
     entry = validate_entry(payload)
@@ -137,12 +145,17 @@ def cmd_search(args: argparse.Namespace) -> int:
     for _, entry in iter_entries(data_file) or []:
         if entry_matches(entry, args.query):
             matches.append(entry)
+    matches = matches[: args.limit]
+
+    if args.json:
+        print_jsonl(matches)
+        return 0
 
     if not matches:
         print("No matches found.")
         return 0
 
-    for entry in matches[: args.limit]:
+    for entry in matches:
         print(f"- {entry.get('timestamp', '')} | {entry.get('title', '')}")
         print(f"  repo={entry.get('repo', '')} service={entry.get('service', '')} env={entry.get('environment', '')}")
         print(f"  tags={', '.join(entry.get('tags', []))}")
@@ -158,6 +171,10 @@ def cmd_list(args: argparse.Namespace) -> int:
         entries = list(reversed(entries))
     if args.limit:
         entries = entries[: args.limit]
+
+    if args.json:
+        print_jsonl(entries)
+        return 0
 
     for entry in entries:
         print(f"- {entry.get('timestamp', '')} | {entry.get('title', '')}")
@@ -191,11 +208,21 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser = subparsers.add_parser("search", help="Keyword search entries")
     search_parser.add_argument("query", help="Search text")
     search_parser.add_argument("--limit", type=int, default=10)
+    search_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit matching entries as JSONL (one JSON object per line) for agent consumption",
+    )
     search_parser.set_defaults(func=cmd_search)
 
     list_parser = subparsers.add_parser("list", help="List entries")
     list_parser.add_argument("--limit", type=int, default=20)
     list_parser.add_argument("--reverse", action="store_true", help="Show newest first")
+    list_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit entries as JSONL (one JSON object per line) for agent consumption",
+    )
     list_parser.set_defaults(func=cmd_list)
 
     return parser

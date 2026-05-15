@@ -63,19 +63,19 @@ single line; shown here formatted for readability:
 
 ```json
 {
-  "id": "mem-1747300720",
-  "timestamp": "2026-05-15T09:18:40Z",
-  "title": "A backend field feeding a client-side formatter must be machine-parseable, not pre-formatted",
-  "problem": "A list view's relative-date formatting silently did nothing — every row showed a raw string instead of 'Today' / 'Yesterday'.",
-  "cause": "The API returned the date as a pre-formatted display string ('27th Apr 2025'). The client formatter calls Date.parse(), which cannot read that format, fails silently, and falls back to the raw value.",
-  "fix": "Return the field as an ISO-8601 / RFC3339 timestamp; let the client own all presentation formatting.",
-  "prevention": "Any field that feeds a client-side formatter must be machine-parseable. Keep display formatting on the client — the API sends timestamps, not sentences.",
-  "artifact": "API response builder",
+  "id": "mem-1745905159",
+  "timestamp": "2026-04-29T05:39:19Z",
+  "title": "A Go struct with no json tags serializes as PascalCase and breaks snake_case clients",
+  "problem": "A settings page always showed default values regardless of what was saved. The PUT endpoint worked and the DB rows were correct, but the UI never reflected saved values.",
+  "cause": "The model had gorm column tags but no json tags. Go's encoding/json defaults to the literal Go field name (PascalCase), so the API returned AutoAcceptDelaySeconds while the client read auto_accept_delay_seconds and fell through to defaults on every read.",
+  "fix": "Added explicit snake_case json tags to every field of the struct. Verified end-to-end with curl that the response used snake_case keys.",
+  "prevention": "Any Go struct that crosses an HTTP boundary needs explicit json tags from the start. If a struct is both a DB row and an HTTP payload it needs both tag sets: gorm:\"column:foo\" json:\"foo\".",
+  "artifact": "Go model struct used as a JSON response body",
   "repo": "api-server",
-  "service": "",
+  "service": "settings",
   "environment": "production",
-  "tags": ["api-contract", "date-formatting", "frontend"],
-  "confidence": 0.9,
+  "tags": ["go", "gorm", "json", "api-contract"],
+  "confidence": 0.95,
   "status": "draft",
   "source": "claude-code"
 }

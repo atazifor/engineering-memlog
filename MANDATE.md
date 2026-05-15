@@ -1,9 +1,9 @@
 # The mandate
 
 This is the load-bearing part of the system. The `memlog` script is
-deliberately dumb — it has no idea what is worth remembering. The
-*judgment* lives here, in a standing instruction you paste into your AI
-agent's always-loaded rules file (`CLAUDE.md`, `.cursorrules`,
+deliberately dumb — it has no idea what is worth remembering, or when to
+go looking. The *judgment* lives here, in a standing instruction you paste
+into your AI agent's always-loaded rules file (`CLAUDE.md`, `.cursorrules`,
 `AGENTS.md`, or equivalent).
 
 Copy everything between the `---` lines into that file.
@@ -12,22 +12,38 @@ Copy everything between the `---` lines into that file.
 
 ## Engineering memory
 
-This project uses a shared, cross-project engineering log at
+This project keeps a shared, cross-project engineering log at
 `~/.engineering-memlog/entries.jsonl`, written and read with the `memlog`
 CLI. Treat the log as part of your working memory — it is prior knowledge,
-not documentation.
+not documentation. The loop has two halves: read the log before you work,
+write to it after.
 
-**Before starting a non-trivial task**, search the log for prior lessons
-touching the same area, framework, or failure mode:
+### Search the log — before you work
+
+Search the log when you:
+
+- start a non-trivial task,
+- hit an unfamiliar error or failure you cannot immediately explain, or
+- are about to propose a fix for a non-obvious bug.
+
+Search for the concrete signal in front of you — keywords from the error
+message, the observed symptom, the framework or tool involved, or the
+domain of the task. Pass `--json` to read results back as JSONL, one
+entry per line:
 
 ```bash
-memlog search <keyword>
+memlog search "frozen-lockfile" --json
 ```
 
-If a relevant entry exists, factor it in before diagnosing from scratch.
-A two-minute search can replace a thirty-minute rediscovery.
+Read every matching entry. If one applies, follow its `prevention` rule
+instead of diagnosing from scratch, and reference the entry in your
+reasoning or in the fix so the human can trace where it came from. No
+match is a normal, expected result — just proceed. A two-minute search
+can save a thirty-minute rediscovery.
 
-**Before concluding a meaningful task**, ask:
+### Append a lesson — after you work
+
+Before concluding a meaningful task, ask:
 
 1. Did I learn something reusable?
 2. Did I fix something non-obvious?
@@ -69,7 +85,12 @@ secrets in an entry.
 ## Setup for a new project
 
 1. Ensure `memlog` is on your PATH (see README).
-2. Paste the block above into the project's agent rules file.
+2. If the log lives anywhere other than the default
+   (`~/.engineering-memlog/entries.jsonl`) — e.g. a team-shared path —
+   set `ENGINEERING_MEMLOG_FILE` in the environment. The mandate's bare
+   `memlog` commands then resolve to it automatically; nothing in the
+   pasted block needs editing.
+3. Paste the block above into the project's agent rules file.
 
 That's it. Every future agent session in that project follows the same
 search-then-log discipline, contributing to one shared log.

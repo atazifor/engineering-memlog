@@ -8,9 +8,9 @@ Your agent figures something out the hard way. The session ends, and that knowle
 
 That's the whole thing. One JSONL file, a ~200-line script, and one paragraph of instructions for your agent.
 
-## How it works
+## The three pieces
 
-Three pieces. The division is the whole idea.
+The division is the whole idea.
 
 **1. A structured log.** One append-only file, `entries.jsonl` — one JSON object per line, shared across every project. See [SCHEMA.md](SCHEMA.md).
 
@@ -48,6 +48,10 @@ memlog list --reverse
 
 In practice you rarely run `add` by hand. Your agent does, because the mandate tells it to.
 
+## How your agent uses the log
+
+The agent uses the same CLI you do — no embeddings, no MCP server required. Before non-trivial work, it runs `memlog search` with keywords from the symptom or error in front of it, reading matches back as JSONL (`memlog search "<query>" --json`). If an entry applies, the agent follows its `prevention` rule instead of re-deriving the fix, and notes the entry in its reasoning. After a meaningful task, it runs `memlog add` to append a new structured entry. Two shell commands — the [mandate](MANDATE.md) is what makes the agent run them unprompted.
+
 ## Set up the discipline
 
 Copy the block in [MANDATE.md](MANDATE.md) into your agent's rules file. That paragraph is what turns a logging *tool* into a logging *habit* — an agent will reliably do what a human won't.
@@ -61,7 +65,7 @@ The narrowness is the point. It's an opinion, expressed as 200 lines of code.
 
 ## Examples
 
-[examples/entries.jsonl](examples/entries.jsonl) — 12 real lessons (sanitized) from production work: Go / GORM gotchas, Next.js build traps, CI and lockfile failures, API-contract bugs.
+[examples/entries.jsonl](examples/entries.jsonl) — 12 real lessons (sanitized) from production work: Go / GORM gotchas, Next.js build traps, CI and lockfile failures, API-contract bugs. Skim a few — they're the best demonstration of what's worth logging.
 
 ## License
 
