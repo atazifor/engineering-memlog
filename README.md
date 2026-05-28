@@ -50,7 +50,11 @@ In practice you rarely run `add` by hand. Your agent does, because the mandate t
 
 ## How your agent uses the log
 
-The agent uses the same CLI you do — no embeddings, no MCP server required. Before non-trivial work, it runs `memlog search` with keywords from the symptom or error in front of it, reading matches back as JSONL (`memlog search "<query>" --json`). If an entry applies, the agent follows its `prevention` rule instead of re-deriving the fix, and notes the entry in its reasoning. After a meaningful task, it runs `memlog add` to append a new structured entry. Two shell commands — the [mandate](MANDATE.md) is what makes the agent run them unprompted.
+The agent uses the same CLI you do — no embeddings, no MCP server required. Two paths, depending on whether the plugin is installed.
+
+**With the [mandate](MANDATE.md) only (any agent, any IDE):** after a meaningful task, the agent runs `memlog add` to append a structured entry. When it remembers, it also runs `memlog search` against a fresh symptom and follows the matching entry's `prevention` rule. The write half is reliable; the read half drifts in practice — that's the gap the plugin fills.
+
+**With the plugin installed (Claude Code only):** a SessionStart hook auto-injects the top relevant entries against the project's sniffed signature before you type. A UserPromptSubmit hook auto-injects matches whenever your prompt looks symptom-shaped (errors, failures, 4xx/5xx, framework names). The agent never has to remember to look — the look already happened. Writing still flows through the mandate. See the next section for install.
 
 ## Closing the read-side loop — Claude Code plugin
 

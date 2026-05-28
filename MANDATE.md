@@ -1,10 +1,19 @@
 # The mandate
 
-This is the load-bearing part of the system. The `memlog` script is
-deliberately dumb — it has no idea what is worth remembering, or when to
-go looking. The *judgment* lives here, in a standing instruction you paste
+The `memlog` script is deliberately dumb — it has no idea what is worth
+remembering. The *judgment* lives here, in a standing instruction you paste
 into your AI agent's always-loaded rules file (`CLAUDE.md`, `.cursorrules`,
 `AGENTS.md`, or equivalent).
+
+> **Read this before you copy.** The mandate covers the write half of the
+> loop reliably — agents capture lessons after meaningful work when told to.
+> The read half drifts in practice: an agent told to "search the log before
+> non-trivial work" loses that attention contest to whatever the user just
+> typed. If you're on Claude Code, install the [plugin](README.md#closing-the-read-side-loop--claude-code-plugin)
+> alongside this mandate — its hooks fire the search automatically so the
+> loop closes whether the agent remembers or not. If you're not on Claude
+> Code, the prose-only mandate below still works for writes; the read side
+> will require occasional manual nudges.
 
 Copy everything between the `---` lines into that file.
 
