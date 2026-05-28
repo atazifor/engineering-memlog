@@ -75,9 +75,14 @@ Requires Claude Code 1.0.123+. Run these slash commands inside any Claude Code s
 ```
 /plugin marketplace add atazifor/engineering-memlog
 /plugin install engineering-memlog@engineering-memlog
+/reload-plugins
 ```
 
-Then start a new session in a project directory — the SessionStart hook will inject the top relevant entries before you type. Symptom-shaped prompts trigger the UserPromptSubmit hook automatically.
+The `/reload-plugins` step registers the plugin's commands and hooks in the current session — without it, `/recall` and the UserPromptSubmit hook won't appear until you next launch Claude Code.
+
+The **SessionStart** hook fires once per session at startup, so it won't trigger inside the session you installed from. To see it work, **quit Claude Code and open a brand-new session in a project directory** (one with a `package.json` / `go.mod` / `pom.xml` / `Cargo.toml` / etc. for the sniffer to read). The auto-injection lands as a system reminder before the first user prompt.
+
+For a quick sanity check in a fresh session, ask: *"What memlog entries do you have in your starting context? Show me the top 3 titles."* If the hook fired, the model will list them.
 
 You'll also want the `memlog` CLI on your PATH so the plugin's hooks can write to a single shared log (the install above only adds the read-side hooks; the CLI lives separately):
 
