@@ -70,21 +70,25 @@ The pieces are all stdlib Python plus bash hooks — same "deliberately dumb" di
 
 ### Install the plugin
 
-The plugin lives in this repo. Drop it into the Claude Code plugins directory and the hooks fire on every session:
+Requires Claude Code 1.0.123+. Run these slash commands inside any Claude Code session:
 
-```bash
-# clone if you haven't already
-git clone https://github.com/atazifor/engineering-memlog ~/engineering-memlog
-
-# put the memlog CLI on PATH (one-time)
-cp ~/engineering-memlog/memlog ~/.local/bin/memlog && chmod +x ~/.local/bin/memlog
-
-# install the plugin (Claude Code 1.0.123+)
-mkdir -p ~/.claude/plugins
-ln -s ~/engineering-memlog ~/.claude/plugins/engineering-memlog
+```
+/plugin marketplace add atazifor/engineering-memlog
+/plugin install engineering-memlog@engineering-memlog
 ```
 
-On next session start the hook injects relevant entries; on symptom-shaped prompts the per-prompt hook fires. Per-session opt-out: `MEMLOG_PLUGIN_DISABLE=1`. Other knobs documented in `CLAUDE.md` inside this repo.
+Then start a new session in a project directory — the SessionStart hook will inject the top relevant entries before you type. Symptom-shaped prompts trigger the UserPromptSubmit hook automatically.
+
+You'll also want the `memlog` CLI on your PATH so the plugin's hooks can write to a single shared log (the install above only adds the read-side hooks; the CLI lives separately):
+
+```bash
+git clone https://github.com/atazifor/engineering-memlog ~/engineering-memlog
+cp ~/engineering-memlog/memlog ~/.local/bin/memlog && chmod +x ~/.local/bin/memlog
+```
+
+Per-session opt-out: set `MEMLOG_PLUGIN_DISABLE=1` in your shell. Other knobs (entry limit, score threshold, custom log path) documented in `CLAUDE.md` inside this repo.
+
+> Once accepted into Anthropic's official marketplace, you'll also be able to install via `/plugin install engineering-memlog@claude-plugins-official` and browse from `/plugin > Discover`.
 
 ## Set up the discipline (without the plugin)
 
@@ -96,6 +100,30 @@ If you're not on Claude Code or don't want hooks, the original prose-only mandat
 - **Not a general agent-memory layer** like Mem0 or OpenMemory. Those are broader and more capable. This is deliberately narrow: one schema, one file, one concern — operational engineering knowledge.
 
 The narrowness is the point. It's an opinion, expressed as 200 lines of code.
+
+## Security & data flow
+
+**What it reads** (locally only):
+
+- Manifest files at the project cwd: `go.mod`, `package.json`, `pom.xml`, `Cargo.toml`, `pyproject.toml`, `Gemfile`, etc. — to detect languages and frameworks for the relevance ranker.
+- `git remote get-url origin` and `git ls-files` — to detect repo name and run a file-extension census. Both are read-only.
+- `CLAUDE.md` / `AGENTS.md` / `.cursorrules` in the cwd (and its parents) — for optional `stack:` / `tags:` hint lines.
+- Your engineering-memlog JSONL file — by default `~/engineering-memory/data/entries.jsonl` (override with `ENGINEERING_MEMLOG_FILE`).
+
+**What it writes:**
+
+- `entries.jsonl` — append-only, when the agent runs `memlog add`. That's the entire write surface.
+
+**What it sends over the network:**
+
+- **Nothing.** All processing — sniffing, ranking, searching — runs in stdlib Python locally. No telemetry, no remote API calls, no embeddings service, no LLM-in-the-loop. The mandate prose tells the agent what to remember; the deterministic ranker decides what to surface. There is no network code in this plugin.
+
+**What it never does:**
+
+- The mandate explicitly forbids logging secrets — tokens, passwords, credentials, private keys, session cookies, connection strings. The schema enforces structure but not secret detection; that's on the agent following the rule.
+- It does not exfiltrate, transmit, or upload your log anywhere. The log is your file on your disk.
+
+**Sandboxing the plugin per-session:** `MEMLOG_PLUGIN_DISABLE=1` in your shell skips both hooks. Useful when working in a sensitive context where you'd rather not have prior lessons injected.
 
 ## Examples
 
