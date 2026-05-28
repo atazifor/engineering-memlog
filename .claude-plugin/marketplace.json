@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "engineering-memlog",
+  "description": "Engineering memory for AI coding agents — a structured cross-project log, a deliberately dumb CLI, and a Claude Code plugin that closes the read-side loop with auto-firing hooks.",
+  "owner": {
+    "name": "atazifor"
+  },
+  "plugins": [
+    {
+      "name": "engineering-memlog",
+      "description": "Auto-injects relevant prior lessons from the engineering log at session start (project-aware via manifest sniffing) and on symptom-shaped prompts (errors / failures / 4xx / 5xx / framework names). Hooks bypass LLM judgement to close the read-side loop. Includes a /recall slash command for explicit deep dives.",
+      "author": {
+        "name": "atazifor"
+      },
+      "category": "productivity",
+      "source": "./",
+      "homepage": "https://github.com/atazifor/engineering-memlog"
+    }
+  ]
+}
