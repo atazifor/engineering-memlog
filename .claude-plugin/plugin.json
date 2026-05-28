@@ -1,0 +1,15 @@
+{
+  "name": "engineering-memlog",
+  "version": "0.1.0",
+  "description": "Close the engineering-memory loop: auto-inject relevant prior lessons on session start and on symptom-shaped prompts, plus a /recall command for explicit deep dive.",
+  "author": "atazifor",
+  "homepage": "https://github.com/atazifor/engineering-memlog",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "memlog",
+    "knowledge-management",
+    "engineering",
+    "claude-code"
+  ]
+}

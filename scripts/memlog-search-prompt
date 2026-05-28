@@ -1,0 +1,322 @@
+#!/usr/bin/env python3
+"""
+memlog-search-prompt — symptom-triggered search of the engineering log.
+
+Reads a user prompt on stdin, decides whether it looks like a debugging /
+troubleshooting / "something broke" message, and if so, extracts likely
+search keywords and emits matching log entries as JSONL.
+
+If the prompt doesn't look like a symptom (e.g. "add a button here"), this
+emits nothing — no per-turn noise on benign prompts.
+
+This is the "ring a bell automatically" half of the read-side. The agent
+doesn't have to remember to search; the hook fires on every prompt, this
+script decides whether searching is warranted and what to search for.
+
+Heuristic (deliberately simple):
+  - SYMPTOM_PATTERNS: substrings that strongly indicate trouble
+    ("error", "fail", "broken", HTTP 4xx/5xx codes, etc.)
+  - if at least one matches, extract keywords:
+      * any quoted string in the prompt (high signal — usually an error message)
+      * known tech tokens (capitalized words, dotted identifiers, version strings)
+      * known framework / tool names from a small dictionary
+  - run a search of the log for each keyword, dedup hits, sort by score
+  - emit top K as JSONL
+
+The scoring mirrors memlog-shortlist's recency / confidence bonuses so the
+output format is consistent across both injection paths.
+
+Usage:
+  echo "I'm getting a 500 on /driver/order/new" | memlog-search-prompt --limit 5
+"""
+import argparse
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+
+DEFAULT_DATA_FILE = Path(
+    os.environ.get(
+        "ENGINEERING_MEMLOG_FILE",
+        str(Path.home() / "engineering-memory" / "data" / "entries.jsonl"),
+    )
+)
+
+
+# Phrases that strongly indicate the user is reporting trouble. If none
+# match, this script exits silently — we don't want to inject memlog hits
+# on every benign "add a button" prompt.
+SYMPTOM_PATTERNS = [
+    r"\berror\b",
+    r"\berrors\b",
+    r"\bfail(ed|ing|ure)?\b",
+    r"\bbroke(n)?\b",
+    r"\bnot working\b",
+    r"\bdoesn't work\b",
+    r"\bdoes not work\b",
+    r"\bcan't (?:get|see|find|open|reach|connect)\b",
+    r"\bunable to\b",
+    r"\bpanic\b",
+    r"\bcrash(ed|ing|es)?\b",
+    r"\bhang(ing|s)?\b",
+    r"\bstuck\b",
+    r"\b40[0-9]\b",        # 4xx HTTP code
+    r"\b50[0-9]\b",        # 5xx HTTP code
+    r"\btimeout\b",
+    r"\bbug\b",
+    r"\bissue\b",
+    r"\bregression\b",
+    r"\bwhy (?:is|does|isn't|doesn't)\b",
+    r"\binvalid\b",
+    r"\bmissing\b",
+    r"\bmismatch\b",
+    r"\bexception\b",
+    r"\bstack trace\b",
+    r"\bunexpected\b",
+]
+
+SYMPTOM_RE = re.compile("|".join(SYMPTOM_PATTERNS), re.IGNORECASE)
+
+
+# Known tokens we want to surface as keywords if they appear in the prompt.
+# Kept small — the goal is targeted retrieval, not a search engine. Adding
+# more here improves recall for those topics. Lowercase comparison.
+KNOWN_KEYWORDS: Set[str] = {
+    "go", "gorm", "gin", "java", "spring-boot", "spring", "hibernate",
+    "flyway", "kafka", "redis", "postgresql", "postgres",
+    "next.js", "next", "react", "typescript", "vite", "tailwind",
+    "capacitor", "ios", "android", "fcm", "vapid",
+    "kubernetes", "k8s", "kubectl", "helm", "kustomize", "argocd",
+    "docker", "compose", "github-actions", "workflow",
+    "whatsapp", "meta", "flow", "graph-api", "template",
+    "auth", "jwt", "middleware", "claims", "service-key",
+    "websocket", "ws", "broadcast",
+    "push", "subscription", "service-worker", "sw",
+    "promo", "cart", "checkout", "payment", "wallet",
+    "lifecycle", "transition", "dispatch",
+    "cors", "preflight", "patch",
+    "migration", "schema",
+}
+
+
+# Words we never want to use as keywords — too generic.
+STOPWORDS: Set[str] = {
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from",
+    "have", "i", "if", "in", "is", "it", "its", "me", "my", "of", "on",
+    "or", "so", "that", "the", "this", "to", "was", "we", "what", "when",
+    "where", "which", "who", "why", "with", "you", "your", "do", "does",
+    "did", "had", "has", "not", "no", "yes", "got", "get", "see", "want",
+    "need", "now", "then", "there", "here", "some", "any", "all", "out",
+    "still", "again", "just", "only", "also", "would", "could", "should",
+    "really", "very", "much", "more", "most", "less", "few", "many",
+    "this", "that", "these", "those", "such", "than", "while", "after",
+    "before", "during", "between", "into", "onto", "over", "under",
+    "above", "below", "anything", "something", "nothing", "everything",
+    "way", "ways", "thing", "things", "time", "times", "user", "users",
+}
+
+
+def extract_quoted(text: str) -> List[str]:
+    """Return strings inside single/double/backtick quotes. These are
+    usually the highest-signal tokens — error messages or identifiers
+    the user is copying verbatim."""
+    out: List[str] = []
+    for m in re.finditer(r"\"([^\"\n]{2,120})\"|'([^'\n]{2,120})'|`([^`\n]{2,120})`", text):
+        chunk = (m.group(1) or m.group(2) or m.group(3) or "").strip()
+        if chunk and chunk.lower() not in STOPWORDS:
+            out.append(chunk)
+    return out
+
+
+TOKEN_RE = re.compile(r"[A-Za-z_][\w\-./]*\w")
+
+
+def extract_known(text: str) -> List[str]:
+    """Pick out tokens from KNOWN_KEYWORDS that appear in the prompt."""
+    found: List[str] = []
+    lowered = text.lower()
+    for kw in KNOWN_KEYWORDS:
+        # Use word-boundary-ish matching: kw must be a whole token, not
+        # a substring of an unrelated word.
+        pattern = r"(?:^|[^\w-])" + re.escape(kw) + r"(?:$|[^\w-])"
+        if re.search(pattern, lowered):
+            found.append(kw)
+    return found
+
+
+def extract_identifiers(text: str) -> List[str]:
+    """Camel/PascalCase identifiers, dotted module paths, file extensions,
+    HTTP paths — anything that looks like 'a thing a developer named'.
+
+    Capped at the top 5 longest to avoid flooding the search with one-letter
+    tokens."""
+    candidates: List[str] = []
+    for m in TOKEN_RE.finditer(text):
+        token = m.group(0)
+        if len(token) < 4:
+            continue
+        low = token.lower()
+        if low in STOPWORDS:
+            continue
+        # Drop pure-lowercase short words — they're rarely meaningful
+        # without other context.
+        if token == low and "." not in token and "-" not in token and "/" not in token and len(token) < 6:
+            continue
+        candidates.append(token)
+    # Dedup preserving order, longest-first.
+    seen: Set[str] = set()
+    out: List[str] = []
+    for tok in sorted(candidates, key=lambda t: -len(t)):
+        if tok.lower() not in seen:
+            seen.add(tok.lower())
+            out.append(tok)
+        if len(out) >= 5:
+            break
+    return out
+
+
+def is_symptom(text: str) -> bool:
+    return bool(SYMPTOM_RE.search(text))
+
+
+def iter_entries(path: Path) -> Iterable[Dict[str, Any]]:
+    if not path.exists():
+        return
+    with path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def entry_haystack(entry: Dict[str, Any]) -> str:
+    """The fields we treat as searchable. Lowercased once for cheap matching."""
+    parts: List[str] = []
+    for key in ("title", "problem", "cause", "fix", "prevention", "artifact",
+                "repo", "service", "environment"):
+        val = entry.get(key)
+        if isinstance(val, str):
+            parts.append(val)
+    parts.extend(entry.get("tags", []))
+    return "\n".join(parts).lower()
+
+
+def parse_iso(ts: Optional[str]) -> Optional[datetime]:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def score_match(entry: Dict[str, Any], keywords: List[str], now: datetime) -> float:
+    """Each keyword that matches the entry's haystack contributes 1.0;
+    quoted-string matches (signaled by being already-quoted in the
+    keyword list) get a bonus of 2.0 — they're usually verbatim error
+    messages and are very high-signal."""
+    haystack = entry_haystack(entry)
+    score = 0.0
+    for kw in keywords:
+        if kw.lower() in haystack:
+            # Long quoted-style strings score higher (often error messages)
+            if " " in kw or len(kw) > 25:
+                score += 2.0
+            else:
+                score += 1.0
+    if score == 0.0:
+        return 0.0
+
+    # Recency bonus same as memlog-shortlist (capped at +1.0 here).
+    ts = parse_iso(entry.get("timestamp"))
+    if ts is not None:
+        age_days = max(0.0, (now - ts).total_seconds() / 86400.0)
+        if age_days <= 7:
+            score += 1.0
+        elif age_days <= 90:
+            score += 1.0 * (1.0 - (age_days - 7) / (90 - 7))
+
+    # Confidence bonus (small).
+    conf = float(entry.get("confidence") or 0.0)
+    if 0.0 <= conf <= 1.0:
+        score += 0.5 * conf
+
+    return score
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="memlog-search-prompt")
+    parser.add_argument(
+        "--file",
+        default=str(DEFAULT_DATA_FILE),
+        help=f"Path to entries.jsonl (default: {DEFAULT_DATA_FILE})",
+    )
+    parser.add_argument("--limit", type=int, default=5)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Search even if the prompt doesn't look like a symptom",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print decision metadata to stderr (keywords, symptom-flag, hit count)",
+    )
+    args = parser.parse_args()
+
+    prompt = sys.stdin.read()
+    if not prompt.strip():
+        return 0
+
+    symptom = is_symptom(prompt)
+    if args.debug:
+        print(f"symptom={symptom}", file=sys.stderr)
+    if not symptom and not args.force:
+        # Quiet exit — this is the common "no-op" case on benign prompts.
+        return 0
+
+    quoted = extract_quoted(prompt)
+    known = extract_known(prompt)
+    idents = extract_identifiers(prompt)
+    # quoted first (highest signal), then known framework names, then idents.
+    keywords: List[str] = []
+    seen: Set[str] = set()
+    for kw in (*quoted, *known, *idents):
+        low = kw.lower()
+        if low and low not in seen:
+            seen.add(low)
+            keywords.append(kw)
+    if not keywords:
+        return 0
+
+    if args.debug:
+        print(f"keywords={keywords}", file=sys.stderr)
+
+    data_file = Path(args.file)
+    now = datetime.now(timezone.utc)
+    scored: List[Tuple[float, Dict[str, Any]]] = []
+    for entry in iter_entries(data_file):
+        s = score_match(entry, keywords, now)
+        if s > 0.0:
+            scored.append((s, entry))
+    scored.sort(key=lambda kv: -kv[0])
+    top = scored[: args.limit]
+
+    if args.debug:
+        print(f"hits={len(scored)} emitted={len(top)}", file=sys.stderr)
+
+    for _, entry in top:
+        print(json.dumps(entry, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

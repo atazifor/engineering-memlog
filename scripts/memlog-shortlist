@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""
+memlog-shortlist — rank log entries against a project signature and emit
+the top K as JSONL for injection into an LLM session.
+
+Given:
+  - a project signature from memlog-context (on stdin, or via --context-file)
+  - the engineering-memlog data file
+emits the K most-relevant entries (default 8), newest-relevant first, as
+one-JSON-object-per-line. Each line is the FULL entry — designed for direct
+injection into a Claude Code SessionStart hook payload.
+
+Ranking is deterministic and stdlib-only. The formula is intentionally
+boring: tag/repo/service match wins, recency and confidence break ties.
+
+  score = (
+      5.0 * tag_overlap_count        # primary signal — entries with shared tags
+    + 4.0 * repo_match               # exact repo match
+    + 3.0 * service_match            # service-hint substring match
+    + 2.0 * framework_match_count    # frameworks/langs from sniffer ∩ entry tags
+    + 1.0 * language_match_count     # language tag match
+    + 0.5 * confidence               # high-confidence entries float up
+    + recency_bonus                  # entries within last 30 days +0.5..+1.5
+  )
+
+The whole point of the ranker is to hand the LLM a short, focused menu
+rather than the full corpus. The LLM is still expected to pick which
+entries apply — it just doesn't have to read 500 entries to find them.
+
+Usage:
+  memlog-context | memlog-shortlist --limit 8
+  memlog-shortlist --context-file /tmp/sig.json --limit 10 --file ~/path/to/entries.jsonl
+"""
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+
+DEFAULT_DATA_FILE = Path(
+    os.environ.get(
+        "ENGINEERING_MEMLOG_FILE",
+        str(Path.home() / "engineering-memory" / "data" / "entries.jsonl"),
+    )
+)
+
+
+def iter_entries(path: Path) -> Iterable[Dict[str, Any]]:
+    if not path.exists():
+        return
+    with path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                # Bad line — skip; don't fail the whole shortlist.
+                continue
+
+
+def parse_iso(ts: Optional[str]) -> Optional[datetime]:
+    if not ts:
+        return None
+    try:
+        s = ts.replace("Z", "+00:00")
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def recency_bonus(entry_ts: Optional[datetime], now: datetime) -> float:
+    """0.0 baseline; +1.5 for entries from the last 7 days, decaying to 0
+    over 90 days. The decay is deliberately fast — recent lessons are more
+    likely to still apply because the codebase has drifted less since."""
+    if entry_ts is None:
+        return 0.0
+    age_days = max(0.0, (now - entry_ts).total_seconds() / 86400.0)
+    if age_days >= 90:
+        return 0.0
+    if age_days <= 7:
+        return 1.5
+    # linear decay from 7d (1.5) to 90d (0.0)
+    return 1.5 * (1.0 - (age_days - 7) / (90 - 7))
+
+
+def lower_set(items: Optional[Iterable[Any]]) -> set:
+    if not items:
+        return set()
+    out = set()
+    for item in items:
+        if isinstance(item, str):
+            out.add(item.lower())
+    return out
+
+
+def score_entry(entry: Dict[str, Any], sig: Dict[str, Any], now: datetime) -> float:
+    """Deterministic relevance score — see module docstring for formula."""
+    entry_tags = lower_set(entry.get("tags"))
+    sig_tags = lower_set(sig.get("tags"))
+    sig_langs = lower_set(sig.get("languages"))
+    sig_fws = lower_set(sig.get("frameworks"))
+    sig_repo = (sig.get("repo") or "").lower()
+    sig_service = (sig.get("service_hint") or "").lower()
+    entry_repo = (entry.get("repo") or "").lower()
+    entry_service = (entry.get("service") or "").lower()
+    entry_artifact = (entry.get("artifact") or "").lower()
+
+    # Tag overlap with CLAUDE.md hints — highest signal because the user
+    # curated those hints themselves.
+    tag_overlap = len(entry_tags & sig_tags)
+    # Framework / language overlap with sniffed signals.
+    fw_overlap = len(entry_tags & sig_fws)
+    lang_overlap = len(entry_tags & sig_langs)
+
+    # Repo match (exact).
+    repo_match = 1.0 if (sig_repo and sig_repo == entry_repo) else 0.0
+    # Service match — service_hint substring inside the entry's service
+    # OR artifact field. Catches "nourri-delivery" matching either
+    # service="delivery" or artifact="src/main/.../nourri-delivery/...".
+    service_match = 0.0
+    if sig_service:
+        if sig_service in entry_service or sig_service in entry_artifact:
+            service_match = 1.0
+        elif entry_service and entry_service in sig_service:
+            service_match = 0.5  # partial — entry says "delivery", sig says "nourri-delivery"
+
+    confidence = float(entry.get("confidence") or 0.0)
+    if not 0.0 <= confidence <= 1.0:
+        confidence = 0.0
+
+    ts = parse_iso(entry.get("timestamp"))
+    bonus = recency_bonus(ts, now)
+
+    return (
+        5.0 * tag_overlap
+        + 4.0 * repo_match
+        + 3.0 * service_match
+        + 2.0 * fw_overlap
+        + 1.0 * lang_overlap
+        + 0.5 * confidence
+        + bonus
+    )
+
+
+def load_signature(args: argparse.Namespace) -> Dict[str, Any]:
+    if args.context_file:
+        text = Path(args.context_file).read_text(encoding="utf-8")
+    elif not sys.stdin.isatty():
+        text = sys.stdin.read()
+    else:
+        # No signature provided — emit a degraded but still useful shortlist
+        # (recency-only). Useful for "tell me what I logged recently regardless
+        # of project context".
+        text = "{}"
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid signature JSON: {exc}") from exc
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="memlog-shortlist")
+    parser.add_argument(
+        "--file",
+        default=str(DEFAULT_DATA_FILE),
+        help=f"Path to entries.jsonl (default: {DEFAULT_DATA_FILE})",
+    )
+    parser.add_argument(
+        "--context-file",
+        help="Path to a project-signature JSON file (default: read stdin)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=8,
+        help="Number of top entries to emit (default: 8)",
+    )
+    parser.add_argument(
+        "--min-score",
+        type=float,
+        default=0.0,
+        help=(
+            "Drop entries whose score is below this threshold. Default 0.0 "
+            "(emit even weak matches). Raise to 2.0 or so to enforce 'must "
+            "have at least one strong overlap'."
+        ),
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Include the computed score under '_score' in each emitted entry",
+    )
+    args = parser.parse_args()
+
+    sig = load_signature(args)
+    now = datetime.now(timezone.utc)
+    data_file = Path(args.file)
+
+    scored: List[Tuple[float, Dict[str, Any]]] = []
+    for entry in iter_entries(data_file):
+        score = score_entry(entry, sig, now)
+        if score >= args.min_score:
+            scored.append((score, entry))
+
+    # Sort by (-score, -timestamp) so within-score ties are recency-first.
+    def sort_key(item: Tuple[float, Dict[str, Any]]) -> Tuple[float, float]:
+        score, entry = item
+        ts = parse_iso(entry.get("timestamp"))
+        ts_epoch = ts.timestamp() if ts else 0.0
+        return (-score, -ts_epoch)
+
+    scored.sort(key=sort_key)
+    top = scored[: args.limit]
+
+    for score, entry in top:
+        if args.debug:
+            entry = {**entry, "_score": round(score, 2)}
+        print(json.dumps(entry, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

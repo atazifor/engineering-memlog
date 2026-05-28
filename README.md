@@ -52,9 +52,39 @@ In practice you rarely run `add` by hand. Your agent does, because the mandate t
 
 The agent uses the same CLI you do — no embeddings, no MCP server required. Before non-trivial work, it runs `memlog search` with keywords from the symptom or error in front of it, reading matches back as JSONL (`memlog search "<query>" --json`). If an entry applies, the agent follows its `prevention` rule instead of re-deriving the fix, and notes the entry in its reasoning. After a meaningful task, it runs `memlog add` to append a new structured entry. Two shell commands — the [mandate](MANDATE.md) is what makes the agent run them unprompted.
 
-## Set up the discipline
+## Closing the read-side loop — Claude Code plugin
 
-Copy the block in [MANDATE.md](MANDATE.md) into your agent's rules file. That paragraph is what turns a logging *tool* into a logging *habit* — an agent will reliably do what a human won't.
+Prose mandates work for the write side but agents reliably **drift past the "search before you work" half**. The result is a write-mostly system: lessons land but rarely surface in time to prevent a re-derivation.
+
+This repo ships a Claude Code plugin that fixes that by making the read side automatic, not voluntary:
+
+- **SessionStart hook** sniffs the project's languages / frameworks / repo / service from manifest files (`go.mod`, `package.json`, `pom.xml`, `Cargo.toml`, …), ranks entries by tag/repo/service overlap + recency + confidence, and injects the top ~6 as a system reminder at session boot. The agent sees relevant prior lessons before it sees the first user prompt.
+- **UserPromptSubmit hook** scans each prompt for symptom-shaped text (errors, failures, 4xx/5xx, framework names) and, on a hit, extracts likely keywords (quoted strings, known tech tokens) and injects matches. Silent on benign prompts — no per-turn token bloat.
+- **`/recall <query>`** slash command for explicit deep dive.
+
+The pieces are all stdlib Python plus bash hooks — same "deliberately dumb" discipline as the core CLI. See `scripts/memlog-context`, `scripts/memlog-shortlist`, `scripts/memlog-search-prompt`, and `hooks/`.
+
+### Install the plugin
+
+The plugin lives in this repo. Drop it into the Claude Code plugins directory and the hooks fire on every session:
+
+```bash
+# clone if you haven't already
+git clone https://github.com/atazifor/engineering-memlog ~/engineering-memlog
+
+# put the memlog CLI on PATH (one-time)
+cp ~/engineering-memlog/memlog ~/.local/bin/memlog && chmod +x ~/.local/bin/memlog
+
+# install the plugin (Claude Code 1.0.123+)
+mkdir -p ~/.claude/plugins
+ln -s ~/engineering-memlog ~/.claude/plugins/engineering-memlog
+```
+
+On next session start the hook injects relevant entries; on symptom-shaped prompts the per-prompt hook fires. Per-session opt-out: `MEMLOG_PLUGIN_DISABLE=1`. Other knobs documented in `CLAUDE.md` inside this repo.
+
+## Set up the discipline (without the plugin)
+
+If you're not on Claude Code or don't want hooks, the original prose-only mandate still works for the write side. Copy the block in [MANDATE.md](MANDATE.md) into your agent's rules file. That paragraph turns a logging *tool* into a logging *habit*. The plugin is what closes the read-side loop on top.
 
 ## What it isn't
 

@@ -1,0 +1,386 @@
+#!/usr/bin/env python3
+"""
+memlog-context — sniff the project signature of the current working directory.
+
+Emits a JSON object on stdout summarizing what the project is, so downstream
+scripts (memlog-shortlist, memlog-search-prompt) can rank entries by relevance.
+
+The sniffer is intentionally cheap and stdlib-only:
+  - manifest detection: go.mod / package.json / pom.xml / Cargo.toml /
+    pyproject.toml / requirements.txt / Gemfile / build.gradle
+  - file-extension census (top-tracked-by-git, capped)
+  - CLAUDE.md hint extraction (looks for a "stack:" or "tags:" line)
+  - git remote / repo name detection
+
+The output is a stable schema:
+
+  {
+    "repo": "nourri-services",
+    "cwd": "/Users/aminzifor/dev/nourri-services",
+    "languages": ["java", "python", "go"],   // ordered by likelihood
+    "frameworks": ["spring-boot", "react"],  // best-guess from manifests
+    "tags": ["whatsapp", "kubernetes", ...], // CLAUDE.md hints + extras
+    "service_hint": "nourri-delivery"        // last cwd segment, if it looks like a service
+  }
+
+Empty fields are omitted. The shortlist / search-prompt scripts consume this
+and treat missing fields as wildcards.
+
+Usage:
+  memlog-context                # sniff cwd
+  memlog-context --cwd /path    # sniff a specific path
+  memlog-context --pretty       # human-readable indented output
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+from pathlib import Path
+from typing import Dict, List, Optional
+
+
+# Manifest filename → (language, [framework hints to map to known tags]).
+# When a manifest is found, also peek into it for known framework deps
+# via the MANIFEST_PEEK functions below.
+MANIFEST_LANG: Dict[str, str] = {
+    "go.mod":           "go",
+    "package.json":     "javascript",
+    "pom.xml":          "java",
+    "build.gradle":     "java",
+    "build.gradle.kts": "java",
+    "Cargo.toml":       "rust",
+    "pyproject.toml":   "python",
+    "requirements.txt": "python",
+    "Pipfile":          "python",
+    "Gemfile":          "ruby",
+    "composer.json":    "php",
+    "Package.swift":    "swift",
+    "*.csproj":         "csharp",
+}
+
+# Framework keyword → tag emitted. We look for these as substrings in the
+# manifest contents. Keep the keyword unique enough to not false-positive.
+FRAMEWORK_PATTERNS: Dict[str, List[str]] = {
+    "javascript": [
+        ("next", "next.js"),
+        ("react", "react"),
+        ("typescript", "typescript"),
+        ("vue", "vue"),
+        ("svelte", "svelte"),
+        ("express", "express"),
+        ("@nestjs/", "nestjs"),
+        ("vite", "vite"),
+        ("tailwindcss", "tailwind"),
+        ("capacitor", "capacitor"),
+        ("electron", "electron"),
+    ],
+    "java": [
+        ("spring-boot", "spring-boot"),
+        ("spring-cloud", "spring-cloud"),
+        ("quarkus", "quarkus"),
+        ("micronaut", "micronaut"),
+        ("hibernate", "hibernate"),
+        ("flyway", "flyway"),
+    ],
+    "go": [
+        ("gin-gonic/gin", "gin"),
+        ("labstack/echo", "echo"),
+        ("gorilla/mux", "gorilla-mux"),
+        ("gorm.io/gorm", "gorm"),
+        ("aws-sdk-go", "aws-sdk"),
+    ],
+    "python": [
+        ("django", "django"),
+        ("flask", "flask"),
+        ("fastapi", "fastapi"),
+        ("pydantic", "pydantic"),
+        ("sqlalchemy", "sqlalchemy"),
+        ("celery", "celery"),
+    ],
+    "rust": [
+        ("actix-web", "actix"),
+        ("axum", "axum"),
+        ("tokio", "tokio"),
+        ("serde", "serde"),
+        ("sqlx", "sqlx"),
+    ],
+    "ruby": [
+        ("rails", "rails"),
+        ("sinatra", "sinatra"),
+    ],
+}
+
+# Common file extensions → language tag. Counted across git-tracked files
+# (or the filesystem if git isn't available) to surface secondary languages.
+EXT_LANG: Dict[str, str] = {
+    ".go":     "go",
+    ".java":   "java",
+    ".kt":     "kotlin",
+    ".scala":  "scala",
+    ".ts":     "typescript",
+    ".tsx":    "typescript",
+    ".js":     "javascript",
+    ".jsx":    "javascript",
+    ".py":     "python",
+    ".rb":     "ruby",
+    ".rs":     "rust",
+    ".swift":  "swift",
+    ".cs":     "csharp",
+    ".php":    "php",
+    ".sh":     "shell",
+    ".sql":    "sql",
+    ".tf":     "terraform",
+    ".yaml":   "yaml",
+    ".yml":    "yaml",
+}
+
+# Words to skip when extracting "service_hint" from a path — too generic
+# to be useful as a service name.
+GENERIC_DIR_NAMES = {
+    "src", "main", "app", "apps", "lib", "pkg", "internal", "cmd",
+    "service", "services", "server", "client", "frontend", "backend",
+    "web", "api", "core", "shared", "common",
+}
+
+
+def utf8_read(path: Path, max_bytes: int = 64_000) -> str:
+    """Safe-read a small text file. Bounded so a giant package-lock doesn't
+    inflate sniff time."""
+    try:
+        with path.open("rb") as fh:
+            return fh.read(max_bytes).decode("utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+
+def detect_manifest_langs(cwd: Path) -> List[str]:
+    """Languages detected from manifest files at the cwd root.
+
+    Order matters: the first manifest hit wins primary-language slot.
+    Returns in descending priority — the order we'd display them to a model.
+    """
+    detected: List[str] = []
+    for name, lang in MANIFEST_LANG.items():
+        if "*" in name:
+            # glob fallback for things like *.csproj
+            if any(cwd.glob(name)):
+                if lang not in detected:
+                    detected.append(lang)
+        elif (cwd / name).is_file():
+            if lang not in detected:
+                detected.append(lang)
+    return detected
+
+
+def detect_frameworks(cwd: Path, languages: List[str]) -> List[str]:
+    """Read manifest contents and look for framework keywords."""
+    frameworks: List[str] = []
+    if "javascript" in languages and (cwd / "package.json").is_file():
+        text = utf8_read(cwd / "package.json")
+        for keyword, tag in FRAMEWORK_PATTERNS["javascript"]:
+            if keyword in text and tag not in frameworks:
+                frameworks.append(tag)
+    if "java" in languages:
+        for fname in ("pom.xml", "build.gradle", "build.gradle.kts"):
+            if (cwd / fname).is_file():
+                text = utf8_read(cwd / fname, max_bytes=200_000)
+                for keyword, tag in FRAMEWORK_PATTERNS["java"]:
+                    if keyword in text and tag not in frameworks:
+                        frameworks.append(tag)
+    if "go" in languages and (cwd / "go.mod").is_file():
+        text = utf8_read(cwd / "go.mod", max_bytes=200_000)
+        for keyword, tag in FRAMEWORK_PATTERNS["go"]:
+            if keyword in text and tag not in frameworks:
+                frameworks.append(tag)
+    if "python" in languages:
+        for fname in ("pyproject.toml", "requirements.txt", "Pipfile"):
+            if (cwd / fname).is_file():
+                text = utf8_read(cwd / fname)
+                for keyword, tag in FRAMEWORK_PATTERNS["python"]:
+                    if keyword in text and tag not in frameworks:
+                        frameworks.append(tag)
+    if "rust" in languages and (cwd / "Cargo.toml").is_file():
+        text = utf8_read(cwd / "Cargo.toml")
+        for keyword, tag in FRAMEWORK_PATTERNS["rust"]:
+            if keyword in text and tag not in frameworks:
+                frameworks.append(tag)
+    if "ruby" in languages and (cwd / "Gemfile").is_file():
+        text = utf8_read(cwd / "Gemfile")
+        for keyword, tag in FRAMEWORK_PATTERNS["ruby"]:
+            if keyword in text and tag not in frameworks:
+                frameworks.append(tag)
+    return frameworks
+
+
+def detect_ext_languages(cwd: Path, limit: int = 5) -> List[str]:
+    """Count git-tracked file extensions to surface secondary languages.
+
+    Uses `git ls-files` if available (fast, respects .gitignore). Falls back
+    to a shallow filesystem walk if not in a git repo. Capped at 5 langs so
+    a sprinkling of YAML / shell doesn't crowd out the real signal.
+    """
+    counts: Dict[str, int] = {}
+    files: List[str] = []
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if result.returncode == 0:
+            files = result.stdout.splitlines()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    if not files:
+        # Shallow walk fallback — cap depth so a node_modules-heavy repo
+        # outside of git doesn't make us scan a million files.
+        for root, dirs, fnames in os.walk(cwd):
+            # don't descend into common heavyweight dirs
+            dirs[:] = [d for d in dirs if d not in (
+                "node_modules", ".git", "target", "build", "dist",
+                ".next", ".venv", "venv", "vendor",
+            )]
+            depth = Path(root).relative_to(cwd).parts
+            if len(depth) > 4:
+                continue
+            for fname in fnames:
+                files.append(fname)
+
+    for fname in files:
+        ext = Path(fname).suffix.lower()
+        lang = EXT_LANG.get(ext)
+        if lang:
+            counts[lang] = counts.get(lang, 0) + 1
+
+    # Drop yaml / shell / sql from the top if they're dominating — they
+    # rarely indicate "this is a yaml project".
+    sorted_langs = sorted(counts.items(), key=lambda kv: -kv[1])
+    return [lang for lang, _ in sorted_langs[:limit]]
+
+
+CLAUDE_MD_HINT_RE = re.compile(
+    r"(?im)^\s*[\*\-]?\s*(?:stack|tags|languages|frameworks)\s*[:=]\s*(.+)$"
+)
+
+
+def detect_claude_md_hints(cwd: Path) -> List[str]:
+    """Parse CLAUDE.md for stack/tags/languages/frameworks hint lines.
+
+    The format is intentionally loose: anything like
+        stack: Go, Gin, PostgreSQL
+        tags: whatsapp, kubernetes
+    in a CLAUDE.md (or AGENTS.md / .cursorrules) anywhere up the tree.
+
+    This is the user's "the more you tell me, the better I shortlist" hook —
+    a single line in CLAUDE.md substantially improves relevance ranking.
+    """
+    hints: List[str] = []
+    for candidate in ("CLAUDE.md", "AGENTS.md", ".cursorrules"):
+        # Walk up from cwd looking for the hint file (project may be in a sub).
+        for parent in [cwd, *cwd.parents]:
+            path = parent / candidate
+            if path.is_file():
+                text = utf8_read(path, max_bytes=64_000)
+                for line in text.splitlines():
+                    m = CLAUDE_MD_HINT_RE.match(line)
+                    if m:
+                        # split on commas / pipes / slashes, normalize
+                        for raw in re.split(r"[,/|]", m.group(1)):
+                            tag = raw.strip().lower()
+                            tag = re.sub(r"[^\w.\-+]", "", tag)
+                            if tag and tag not in hints:
+                                hints.append(tag)
+                # Stop after the first CLAUDE.md we find — closer to cwd
+                # wins. Don't keep walking up.
+                break
+    return hints
+
+
+def detect_repo(cwd: Path) -> Optional[str]:
+    """Repo name from `git remote get-url origin`, stripped to the last path
+    segment. Falls back to the cwd's name if not in a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            # git@github.com:org/repo.git OR https://github.com/org/repo.git
+            m = re.search(r"[:/]([^/]+?)(?:\.git)?$", url)
+            if m:
+                return m.group(1)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return cwd.name
+
+
+def detect_service_hint(cwd: Path) -> Optional[str]:
+    """The closest non-generic ancestor directory name — often the service
+    or app name inside a monorepo (e.g. "nourri-delivery", "rider-fe")."""
+    for part in reversed(cwd.parts):
+        if part and part.lower() not in GENERIC_DIR_NAMES and not part.startswith("."):
+            return part
+    return None
+
+
+def build_signature(cwd: Path) -> Dict[str, object]:
+    manifest_langs = detect_manifest_langs(cwd)
+    ext_langs = detect_ext_languages(cwd)
+    # Manifest wins; fold in ext-detected langs that weren't in the manifest list.
+    languages = list(manifest_langs)
+    for lang in ext_langs:
+        if lang not in languages:
+            languages.append(lang)
+
+    frameworks = detect_frameworks(cwd, languages)
+    hints = detect_claude_md_hints(cwd)
+
+    sig: Dict[str, object] = {
+        "cwd": str(cwd),
+        "repo": detect_repo(cwd),
+    }
+    if languages:
+        sig["languages"] = languages
+    if frameworks:
+        sig["frameworks"] = frameworks
+    if hints:
+        sig["tags"] = hints
+    service = detect_service_hint(cwd)
+    if service:
+        sig["service_hint"] = service
+    return sig
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="memlog-context")
+    parser.add_argument(
+        "--cwd",
+        default=os.getcwd(),
+        help="Directory to sniff (default: current working directory)",
+    )
+    parser.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Indent the JSON output for human reading",
+    )
+    args = parser.parse_args()
+
+    cwd = Path(args.cwd).resolve()
+    sig = build_signature(cwd)
+    indent = 2 if args.pretty else None
+    print(json.dumps(sig, ensure_ascii=False, indent=indent))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
