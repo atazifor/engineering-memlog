@@ -2,18 +2,24 @@
 #
 # user-prompt-submit.sh — Claude Code UserPromptSubmit hook for engineering-memlog.
 #
-# Fires on every user prompt. Reads the prompt from stdin (Claude Code
-# convention: hook payload is JSON, with the prompt under .prompt or
-# similar — we tolerate both raw-text and JSON inputs). Calls
-# memlog-search-prompt which:
-#   1. Decides if the prompt LOOKS like a symptom (error / fail / 404 /
-#      etc.). If not — silent exit, no injection on benign prompts.
-#   2. If yes — extracts quoted strings, known tech tokens, and
-#      identifiers. Searches the log. Emits top hits as JSONL.
+# Fires on every user prompt. Reads the hook payload (JSON on stdin),
+# extracts the prompt text, and calls memlog-search-prompt which:
+#   1. Decides if the prompt LOOKS like a symptom (error / fail / 404 / etc.).
+#      If not — silent exit, no injection on benign prompts.
+#   2. If yes — extracts quoted strings, known tech tokens, and identifiers.
+#      Searches the log. Emits top hits as JSONL.
 #
-# Output behavior:
-#   - On match: prints a system-reminder header + the JSONL matches.
-#   - On no symptom OR no match: prints nothing (silent no-op).
+# Output contract (matches SessionStart):
+#   {
+#     "hookSpecificOutput": {
+#       "hookEventName": "UserPromptSubmit",
+#       "additionalContext": "<header + JSONL>"
+#     }
+#   }
+#
+# On no symptom OR no match: emit nothing (silent no-op). Claude Code
+# treats empty stdout as "nothing to inject", which is what we want for
+# benign prompts.
 #
 # Env knobs (same shape as session-start.sh):
 #   ENGINEERING_MEMLOG_FILE   — path to entries.jsonl
@@ -36,7 +42,7 @@ if [[ ! -x "$SEARCH" ]]; then
 fi
 
 # Read the hook payload. Claude Code passes JSON on stdin; we try to
-# extract the prompt text from common fields, falling back to the raw
+# extract the prompt text from common fields and fall back to the raw
 # stdin if it isn't JSON.
 STDIN_RAW="$(cat || true)"
 if [[ -z "$STDIN_RAW" ]]; then
@@ -57,7 +63,6 @@ try:
                 print(val)
                 break
         else:
-            # nothing matched — emit the whole JSON so search can still try
             print(raw)
     else:
         print(raw)
@@ -65,13 +70,12 @@ except Exception:
     print(raw)
 ' 2>/dev/null || true)"
 fi
-# If python failed or returned empty, fall back to the raw stdin.
 if [[ -z "$PROMPT_TEXT" ]]; then
   PROMPT_TEXT="$STDIN_RAW"
 fi
 
-# Pipe the extracted text to the search script. It exits 0 with no output
-# for benign prompts.
+# Pipe the extracted text to the symptom-detection search. Exits 0 with
+# no output for benign prompts.
 HITS="$(printf "%s" "$PROMPT_TEXT" | "$SEARCH" --limit "$LIMIT" 2>/dev/null || true)"
 if [[ -z "$HITS" ]]; then
   exit 0
@@ -79,10 +83,23 @@ fi
 
 COUNT=$(printf "%s\n" "$HITS" | grep -c . || true)
 
-cat <<EOF
+BODY="$(cat <<EOF
 **memlog** — symptom detected in user prompt, ${COUNT} prior lesson(s)
-matched. Each line is a full memlog entry (JSON). If one applies, follow
-its "prevention" rule and reference it in your reasoning.
+matched. Each line below is a full memlog entry as JSON. If one applies,
+follow its "prevention" rule and reference the entry in your reasoning.
 
-$HITS
+${HITS}
 EOF
+)"
+
+python3 -c '
+import json, sys
+body = sys.stdin.read()
+out = {
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": body
+    }
+}
+print(json.dumps(out, ensure_ascii=False))
+' <<<"$BODY"

@@ -3,24 +3,22 @@
 # session-start.sh — Claude Code SessionStart hook for engineering-memlog.
 #
 # Runs once at the start of every session. Sniffs the project signature
-# from the cwd, ranks the entries.jsonl against it, and prints the top K
-# matches as a system reminder for the LLM to see at session boot.
+# from $CLAUDE_PROJECT_DIR, ranks entries.jsonl against it, and emits a
+# JSON envelope with the top K matches in hookSpecificOutput.additionalContext.
+# Claude Code injects that string into the conversation as additional
+# context the model sees before the first user prompt.
 #
-# Hooked via .claude/settings.json (project-level) or ~/.claude/settings.json
-# (user-level):
-#
+# Output contract (Claude Code 1.0.123+):
 #   {
-#     "hooks": {
-#       "SessionStart": [
-#         { "hooks": [{ "type": "command",
-#                       "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh" }]}
-#       ]
+#     "hookSpecificOutput": {
+#       "hookEventName": "SessionStart",
+#       "additionalContext": "<human-readable text with JSONL inside>"
 #     }
 #   }
 #
-# Output: a single JSON object with `hookSpecificOutput.additionalContext`
-# is the canonical Claude Code v1.0.123+ contract. We keep it simple and
-# print to stdout — the harness wraps it as a system reminder.
+# Raw stdout outside this envelope is silently dropped — the plugin loader
+# only routes the additionalContext string into the model's context. That
+# was the bug that kept us mute through the first round of testing.
 #
 # Env knobs:
 #   ENGINEERING_MEMLOG_FILE   — path to entries.jsonl (defaults set in scripts)
@@ -30,7 +28,8 @@
 
 set -euo pipefail
 
-# Allow per-session disable.
+# Allow per-session disable. Empty JSON envelope is fine — Claude Code
+# just ignores it.
 if [[ "${MEMLOG_PLUGIN_DISABLE:-0}" == "1" ]]; then
   exit 0
 fi
@@ -38,8 +37,6 @@ fi
 LIMIT="${MEMLOG_PLUGIN_LIMIT:-6}"
 MIN_SCORE="${MEMLOG_PLUGIN_MIN_SCORE:-1.5}"
 
-# CLAUDE_PLUGIN_ROOT is set by the Claude Code plugin loader. Fall back to
-# the script's own location for direct testing.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CTX="${PLUGIN_ROOT}/scripts/memlog-context"
 RANK="${PLUGIN_ROOT}/scripts/memlog-shortlist"
@@ -50,11 +47,12 @@ if [[ ! -x "$CTX" || ! -x "$RANK" ]]; then
   exit 0
 fi
 
-# CWD when the hook fires reflects the user's project (Claude Code sets it).
-# We pass it explicitly so it survives env-var stripping.
-PROJECT_CWD="${PWD:-$(pwd)}"
+# CLAUDE_PROJECT_DIR is the documented project-cwd env var for hooks.
+# Fall back to PWD if not set (e.g. when running this script directly).
+PROJECT_CWD="${CLAUDE_PROJECT_DIR:-${PWD:-$(pwd)}}"
 
-# Run sniffer → ranker. Capture and only emit if there's at least one match.
+# Run sniffer → ranker. Capture; if there's no match, emit nothing
+# (still exit 0 — silence is the right answer for "no relevant lessons").
 SHORTLIST="$("$CTX" --cwd "$PROJECT_CWD" 2>/dev/null \
               | "$RANK" --limit "$LIMIT" --min-score "$MIN_SCORE" 2>/dev/null \
               || true)"
@@ -63,18 +61,39 @@ if [[ -z "$SHORTLIST" ]]; then
   exit 0
 fi
 
-# Count matches for the prelude.
+# Count matches for the human prelude.
 COUNT=$(printf "%s\n" "$SHORTLIST" | grep -c . || true)
 
-# Compose the system-reminder body. JSONL after a one-line prelude so the
-# model sees clear delimiters between header and data.
-cat <<EOF
+# Compose the additionalContext body. The model will see this as a system
+# reminder injected at session start. Header explains the format and the
+# instruction (consult before re-deriving); JSONL entries follow.
+BODY="$(cat <<EOF
 **memlog** — auto-injected by the engineering-memlog plugin.
 
-${COUNT} prior lesson(s) ranked relevant to this project. Each line below
-is a full memlog entry (JSON). When a current symptom matches one of
+${COUNT} prior lesson(s) ranked relevant to this project (by tag / repo /
+service / framework overlap + recency + confidence). Each line below is
+a full memlog entry as JSON. When a current symptom matches one of
 these entries' "problem" or "cause", apply its "prevention" rule rather
-than re-deriving. Run \`memlog search <query> --json\` for deeper dives.
+than re-deriving. Reference the entry's title or id in your reasoning.
 
-$SHORTLIST
+Run \`memlog search <query> --json\` (or /recall <query>) for deeper
+queries against the full log.
+
+${SHORTLIST}
 EOF
+)"
+
+# Emit the JSON envelope Claude Code expects. python3 is used for the
+# string→JSON escape because doing it in bash is error-prone for content
+# that contains newlines, quotes, and backslashes (which our JSONL does).
+python3 -c '
+import json, sys
+body = sys.stdin.read()
+out = {
+    "hookSpecificOutput": {
+        "hookEventName": "SessionStart",
+        "additionalContext": body
+    }
+}
+print(json.dumps(out, ensure_ascii=False))
+' <<<"$BODY"
