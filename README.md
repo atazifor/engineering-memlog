@@ -33,10 +33,17 @@ The script is deliberately dumb: it appends a JSON line and greps the file. Zero
 
 ```bash
 git clone https://github.com/atazifor/engineering-memlog
-cp engineering-memlog/memlog ~/.local/bin/memlog   # or anywhere on PATH
-chmod +x ~/.local/bin/memlog
+cd engineering-memlog
+make install        # symlinks memlog onto your PATH, verifies it, checks PATH
 memlog --help
 ```
+
+`make install` symlinks (not copies) the CLI into `~/.local/bin`, so a later
+`git pull` updates it in place — no stale copy. Override the location with
+`make install BINDIR=/usr/local/bin`. Run `make doctor` any time to check the
+install, PATH, and python3; `make uninstall` removes the symlink. (Prefer the
+manual way? `cp memlog ~/.local/bin/memlog && chmod +x ~/.local/bin/memlog`
+still works — just re-copy after each pull.)
 
 The log lives at `~/.engineering-memlog/entries.jsonl` by default. Override with `--file` or `ENGINEERING_MEMLOG_FILE` — point it inside a repo if you want a team to share one.
 
@@ -95,7 +102,7 @@ You'll also want the `memlog` CLI on your PATH so the plugin's hooks can write t
 
 ```bash
 git clone https://github.com/atazifor/engineering-memlog ~/engineering-memlog
-cp ~/engineering-memlog/memlog ~/.local/bin/memlog && chmod +x ~/.local/bin/memlog
+make -C ~/engineering-memlog install   # symlink onto PATH + verify; `make doctor` to check
 ```
 
 Per-session opt-out: set `MEMLOG_PLUGIN_DISABLE=1` in your shell to skip the whole hook, or `MEMLOG_MANDATE=manual` to keep the ranked-entry injection but turn off mandate auto-load (e.g. when you maintain the mandate by hand in `CLAUDE.md`). Other knobs (entry limit, score threshold, custom log path) documented in `CLAUDE.md` inside this repo.
