@@ -43,7 +43,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 DEFAULT_DATA_FILE = Path(
     os.environ.get(
         "ENGINEERING_MEMLOG_FILE",
-        str(Path.home() / "engineering-memory" / "data" / "entries.jsonl"),
+        str(Path.home() / ".engineering-memlog" / "entries.jsonl"),
     )
 )
 

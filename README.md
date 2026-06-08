@@ -1,12 +1,19 @@
 # engineering-memlog
 
-A shared engineering log your AI coding agent writes to — and reads from — across sessions.
+**Persistent, cross-project engineering memory for AI coding agents.** Your agent writes hard-won lessons to a shared log — and reads them back *before* it works — so it stops re-deriving the same fix every session. Works with Claude Code (one-command plugin), Cursor, and any agent that reads a `CLAUDE.md` / `AGENTS.md` / `.cursorrules`.
 
-Your agent figures something out the hard way. The session ends, and that knowledge is gone. A week later a different session re-derives the same fix from scratch.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)
+![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
+![dependencies: stdlib only](https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen)
 
-`memlog` fixes that. Before finishing a task, the agent asks itself whether it learned something worth keeping. If yes, it appends a structured entry — problem, cause, fix, prevention — to a single shared log. Next time the symptom shows up, the agent searches the log and skips the re-derivation.
+> **The problem:** an AI agent figures something out the hard way, the session ends, and that knowledge is gone. A week later a different session re-derives the same fix from scratch.
+>
+> **The fix:** before finishing a task, the agent appends a structured lesson — *problem, cause, fix, prevention* — to one shared JSONL log. Next time the symptom shows up, it searches the log and skips the re-derivation.
 
-That's the whole thing. One JSONL file, a ~200-line script, and one paragraph of instructions for your agent.
+That's the whole thing: **one JSONL file, a ~200-line stdlib script, and one paragraph of instructions for your agent.** No database, no embeddings, no network calls. On Claude Code, a plugin makes the read-half automatic — relevant prior lessons are injected into context before you type.
+
+**Keywords:** AI agent memory · persistent memory for LLM coding assistants · Claude Code plugin · Cursor / AGENTS.md · cross-project knowledge base · stop repeating bugs.
 
 ## The three pieces
 
@@ -113,7 +120,7 @@ The narrowness is the point. It's an opinion, expressed as 200 lines of code.
 - Manifest files at the project cwd: `go.mod`, `package.json`, `pom.xml`, `Cargo.toml`, `pyproject.toml`, `Gemfile`, etc. — to detect languages and frameworks for the relevance ranker.
 - `git remote get-url origin` and `git ls-files` — to detect repo name and run a file-extension census. Both are read-only.
 - `CLAUDE.md` / `AGENTS.md` / `.cursorrules` in the cwd (and its parents) — for optional `stack:` / `tags:` hint lines.
-- Your engineering-memlog JSONL file — by default `~/engineering-memory/data/entries.jsonl` (override with `ENGINEERING_MEMLOG_FILE`).
+- Your engineering-memlog JSONL file — by default `~/.engineering-memlog/entries.jsonl` (override with `ENGINEERING_MEMLOG_FILE`).
 
 **What it writes:**
 
