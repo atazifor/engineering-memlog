@@ -54,7 +54,7 @@ The agent uses the same CLI you do — no embeddings, no MCP server required. Tw
 
 **With the [mandate](MANDATE.md) only (any agent, any IDE):** after a meaningful task, the agent runs `memlog add` to append a structured entry. When it remembers, it also runs `memlog search` against a fresh symptom and follows the matching entry's `prevention` rule. The write half is reliable; the read half drifts in practice — that's the gap the plugin fills.
 
-**With the plugin installed (Claude Code only):** a SessionStart hook auto-injects the top relevant entries against the project's sniffed signature before you type. A UserPromptSubmit hook auto-injects matches whenever your prompt looks symptom-shaped (errors, failures, 4xx/5xx, framework names). The agent never has to remember to look — the look already happened. **The plugin also auto-loads the [mandate](MANDATE.md)** for the write half (via its own `CLAUDE.md`), so plugin users don't need to paste anything into a per-project rules file — both halves of the loop travel with the install. See the next section for the install commands.
+**With the plugin installed (Claude Code only):** a SessionStart hook auto-injects the top relevant entries against the project's sniffed signature before you type. A UserPromptSubmit hook auto-injects matches whenever your prompt looks symptom-shaped (errors, failures, 4xx/5xx, framework names). The agent never has to remember to look — the look already happened. **The same SessionStart hook also auto-loads the [mandate](MANDATE.md)** for the write half, so plugin users don't need to paste anything into a per-project rules file — both halves of the loop travel with the install. The auto-load is idempotent: if you *do* paste the mandate into a `CLAUDE.md` (it carries a version marker), the hook detects it and stays quiet so it never double-loads; set `MEMLOG_MANDATE=manual` to turn auto-load off entirely. See the next section for the install commands.
 
 ## Closing the read-side loop — Claude Code plugin
 
@@ -91,7 +91,7 @@ git clone https://github.com/atazifor/engineering-memlog ~/engineering-memlog
 cp ~/engineering-memlog/memlog ~/.local/bin/memlog && chmod +x ~/.local/bin/memlog
 ```
 
-Per-session opt-out: set `MEMLOG_PLUGIN_DISABLE=1` in your shell. Other knobs (entry limit, score threshold, custom log path) documented in `CLAUDE.md` inside this repo.
+Per-session opt-out: set `MEMLOG_PLUGIN_DISABLE=1` in your shell to skip the whole hook, or `MEMLOG_MANDATE=manual` to keep the ranked-entry injection but turn off mandate auto-load (e.g. when you maintain the mandate by hand in `CLAUDE.md`). Other knobs (entry limit, score threshold, custom log path) documented in `CLAUDE.md` inside this repo.
 
 > Once accepted into Anthropic's official marketplace, you'll also be able to install via `/plugin install engineering-memlog@claude-plugins-official` and browse from `/plugin > Discover`.
 

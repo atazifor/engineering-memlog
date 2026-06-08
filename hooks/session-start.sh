@@ -2,11 +2,21 @@
 #
 # session-start.sh — Claude Code SessionStart hook for engineering-memlog.
 #
-# Runs once at the start of every session. Sniffs the project signature
-# from $CLAUDE_PROJECT_DIR, ranks entries.jsonl against it, and emits a
-# JSON envelope with the top K matches in hookSpecificOutput.additionalContext.
-# Claude Code injects that string into the conversation as additional
-# context the model sees before the first user prompt.
+# Runs once at the start of every session and emits a JSON envelope whose
+# hookSpecificOutput.additionalContext Claude Code injects into the
+# conversation before the first user prompt. It contributes two things,
+# each independently:
+#
+#   1. The mandate — the standing "search before you work, log after"
+#      instruction. Auto-loaded so the user never has to paste it into
+#      CLAUDE.md. Self-suppresses if a current-version mandate is already
+#      pasted in a rules file, and can be turned off with MEMLOG_MANDATE=manual.
+#
+#   2. Ranked prior lessons — the top-K memlog entries relevant to this
+#      project, if any.
+#
+# Either part may be present without the other; if neither is, the hook
+# stays silent (exit 0).
 #
 # Output contract (Claude Code 1.0.123+):
 #   {
@@ -17,75 +27,119 @@
 #   }
 #
 # Raw stdout outside this envelope is silently dropped — the plugin loader
-# only routes the additionalContext string into the model's context. That
-# was the bug that kept us mute through the first round of testing.
+# only routes the additionalContext string into the model's context.
 #
 # Env knobs:
 #   ENGINEERING_MEMLOG_FILE   — path to entries.jsonl (defaults set in scripts)
-#   MEMLOG_PLUGIN_DISABLE     — set to "1" to skip injection (per-session opt-out)
-#   MEMLOG_PLUGIN_LIMIT       — top-K (default 6)
+#   MEMLOG_PLUGIN_DISABLE     — set to "1" to skip the whole hook (per-session)
+#   MEMLOG_MANDATE            — "auto" (default) | "manual" (never auto-load
+#                               the mandate; user owns the paste instead)
+#   MEMLOG_PLUGIN_LIMIT       — top-K ranked entries (default 6)
 #   MEMLOG_PLUGIN_MIN_SCORE   — minimum score to include (default 1.5)
 
 set -euo pipefail
 
-# Allow per-session disable. Empty JSON envelope is fine — Claude Code
-# just ignores it.
+# Whole-hook opt-out.
 if [[ "${MEMLOG_PLUGIN_DISABLE:-0}" == "1" ]]; then
   exit 0
 fi
 
-LIMIT="${MEMLOG_PLUGIN_LIMIT:-6}"
-MIN_SCORE="${MEMLOG_PLUGIN_MIN_SCORE:-1.5}"
-
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-CTX="${PLUGIN_ROOT}/scripts/memlog-context"
-RANK="${PLUGIN_ROOT}/scripts/memlog-shortlist"
-
-# If either script is missing, exit cleanly — don't break the user's
-# session over a plugin install glitch.
-if [[ ! -x "$CTX" || ! -x "$RANK" ]]; then
-  exit 0
-fi
 
 # CLAUDE_PROJECT_DIR is the documented project-cwd env var for hooks.
 # Fall back to PWD if not set (e.g. when running this script directly).
 PROJECT_CWD="${CLAUDE_PROJECT_DIR:-${PWD:-$(pwd)}}"
 
-# Run sniffer → ranker. Capture; if there's no match, emit nothing
-# (still exit 0 — silence is the right answer for "no relevant lessons").
-SHORTLIST="$("$CTX" --cwd "$PROJECT_CWD" 2>/dev/null \
-              | "$RANK" --limit "$LIMIT" --min-score "$MIN_SCORE" 2>/dev/null \
-              || true)"
+# Bump this when the mandate text changes in a way that should re-load over
+# an older pasted copy. The marker string lives in MANDATE.md's block, so a
+# repo that pasted v2 is detected; one stuck on an older (or no) marker is
+# treated as "not current" and the hook loads the fresh mandate anyway.
+MANDATE_VERSION="v2"
+MANDATE_MARKER="engineering-memlog-mandate ${MANDATE_VERSION}"
 
-if [[ -z "$SHORTLIST" ]]; then
+# ---------------------------------------------------------------------------
+# Part 1: the mandate
+# ---------------------------------------------------------------------------
+MANDATE_BLOCK=""
+if [[ "${MEMLOG_MANDATE:-auto}" != "manual" ]]; then
+  # Already pasted (at the current version) into a rules file? Then don't
+  # double-load — respect the version-controlled copy.
+  already_pasted=""
+  for f in "${PROJECT_CWD}/CLAUDE.md" \
+           "${PROJECT_CWD}/CLAUDE.local.md" \
+           "${HOME}/.claude/CLAUDE.md"; do
+    if [[ -f "$f" ]] && grep -qF "$MANDATE_MARKER" "$f" 2>/dev/null; then
+      already_pasted="1"
+      break
+    fi
+  done
+
+  if [[ -z "$already_pasted" && -f "${PLUGIN_ROOT}/MANDATE.md" ]]; then
+    # Extract the block between the first pair of `---` fences in MANDATE.md
+    # (the part the docs tell humans to paste). Single source of truth.
+    MANDATE_BLOCK="$(awk '/^---[[:space:]]*$/{n++; next} n==1{print}' \
+                       "${PLUGIN_ROOT}/MANDATE.md")"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Part 2: ranked prior lessons (best-effort; never blocks the mandate)
+# ---------------------------------------------------------------------------
+SHORTLIST=""
+LIMIT="${MEMLOG_PLUGIN_LIMIT:-6}"
+MIN_SCORE="${MEMLOG_PLUGIN_MIN_SCORE:-1.5}"
+CTX="${PLUGIN_ROOT}/scripts/memlog-context"
+RANK="${PLUGIN_ROOT}/scripts/memlog-shortlist"
+if [[ -x "$CTX" && -x "$RANK" ]]; then
+  SHORTLIST="$("$CTX" --cwd "$PROJECT_CWD" 2>/dev/null \
+                | "$RANK" --limit "$LIMIT" --min-score "$MIN_SCORE" 2>/dev/null \
+                || true)"
+fi
+
+# ---------------------------------------------------------------------------
+# Compose the body. Mandate first (the discipline), then the lessons.
+# ---------------------------------------------------------------------------
+BODY=""
+
+if [[ -n "$MANDATE_BLOCK" ]]; then
+  BODY="**memlog mandate** — auto-loaded by the engineering-memlog plugin (no
+manual paste needed). Treat the following as a standing instruction for this
+session: search the log before non-trivial work, and log non-obvious lessons
+after.
+${MANDATE_BLOCK}"
+fi
+
+if [[ -n "$SHORTLIST" ]]; then
+  COUNT=$(printf "%s\n" "$SHORTLIST" | grep -c . || true)
+  ENTRIES="**memlog** — ${COUNT} prior lesson(s) ranked relevant to this project
+(by tag / repo / service / framework overlap + recency + confidence). Each line
+below is a full memlog entry as JSON. When a current symptom matches one of
+these entries' \"problem\" or \"cause\", apply its \"prevention\" rule rather
+than re-deriving. Reference the entry's title or id in your reasoning.
+
+Run \`memlog search <query> --json\` (or /recall <query>) for deeper queries
+against the full log.
+
+${SHORTLIST}"
+
+  if [[ -n "$BODY" ]]; then
+    BODY="${BODY}
+
+---
+
+${ENTRIES}"
+  else
+    BODY="$ENTRIES"
+  fi
+fi
+
+# Nothing to say → stay silent.
+if [[ -z "$BODY" ]]; then
   exit 0
 fi
 
-# Count matches for the human prelude.
-COUNT=$(printf "%s\n" "$SHORTLIST" | grep -c . || true)
-
-# Compose the additionalContext body. The model will see this as a system
-# reminder injected at session start. Header explains the format and the
-# instruction (consult before re-deriving); JSONL entries follow.
-BODY="$(cat <<EOF
-**memlog** — auto-injected by the engineering-memlog plugin.
-
-${COUNT} prior lesson(s) ranked relevant to this project (by tag / repo /
-service / framework overlap + recency + confidence). Each line below is
-a full memlog entry as JSON. When a current symptom matches one of
-these entries' "problem" or "cause", apply its "prevention" rule rather
-than re-deriving. Reference the entry's title or id in your reasoning.
-
-Run \`memlog search <query> --json\` (or /recall <query>) for deeper
-queries against the full log.
-
-${SHORTLIST}
-EOF
-)"
-
-# Emit the JSON envelope Claude Code expects. python3 is used for the
-# string→JSON escape because doing it in bash is error-prone for content
-# that contains newlines, quotes, and backslashes (which our JSONL does).
+# Emit the JSON envelope. python3 handles the string→JSON escaping because
+# the body contains newlines, quotes, and backslashes (our JSONL does).
 python3 -c '
 import json, sys
 body = sys.stdin.read()

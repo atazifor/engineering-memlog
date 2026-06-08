@@ -89,6 +89,9 @@ secrets in an entry.
 If a session needs to opt out or tune behavior:
 
 - `MEMLOG_PLUGIN_DISABLE=1` — skip both hooks for this session
+- `MEMLOG_MANDATE=manual` — keep ranked-entry injection but turn off mandate
+  auto-load (the SessionStart hook otherwise auto-loads the mandate unless a
+  current-version copy is already pasted in a `CLAUDE.md`)
 - `MEMLOG_PLUGIN_LIMIT=N` — number of session-start entries to inject (default 6)
 - `MEMLOG_PLUGIN_MIN_SCORE=F` — drop session-start entries below this score (default 1.5)
 - `MEMLOG_PLUGIN_PROMPT_LIMIT=N` — number of per-prompt hits to inject (default 5)

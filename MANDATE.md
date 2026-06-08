@@ -15,11 +15,19 @@ into your AI agent's always-loaded rules file (`CLAUDE.md`, `.cursorrules`,
 > Code, the prose-only mandate below still works for writes; the read side
 > will require occasional manual nudges.
 
-Copy everything between the `---` lines into that file.
+**On Claude Code with the plugin installed, you do not need to copy
+anything** — the SessionStart hook auto-loads this mandate each session.
+The paste below is optional: do it only if you want the mandate
+version-controlled in your repo (the hook detects the `v2` marker and
+stays quiet so it never double-loads), or set `MEMLOG_MANDATE=manual` to
+turn auto-load off entirely. On other agents, copy everything between the
+`---` lines into your rules file.
 
 ---
 
 ## Engineering memory
+
+<!-- engineering-memlog-mandate v2 -->
 
 This project keeps a shared, cross-project engineering log at
 `~/.engineering-memlog/entries.jsonl`, written and read with the `memlog`
