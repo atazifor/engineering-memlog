@@ -97,16 +97,45 @@ if [[ -x "$CTX" && -x "$RANK" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Compose the body. Mandate first (the discipline), then the lessons.
+# Part 2.5: write-half health check.
+# The mandate tells the agent to run `memlog add`/`search`, but those need the
+# CLI on PATH — a separate install step from the plugin. The read-half (this
+# hook) works without it, which means a missing/dangling CLI fails SILENTLY:
+# lessons keep getting injected while add/search are dead. Detect that and warn
+# loudly so the agent doesn't burn a turn rediscovering it. Conservative to
+# avoid false positives when the hook's non-interactive PATH differs from the
+# agent's shell: a healthy memlog in the standard ~/.local/bin counts as OK
+# even if it isn't on this hook's PATH. (`command -v` and `-x` both reject a
+# dangling symlink, which is exactly the failure we want to catch.)
+CLI_WARNING=""
+if ! command -v memlog >/dev/null 2>&1 && [[ ! -x "${HOME}/.local/bin/memlog" ]]; then
+  LOGFILE="${ENGINEERING_MEMLOG_FILE:-${HOME}/.engineering-memlog/entries.jsonl}"
+  CLI_WARNING="⚠ **memlog write-half unavailable** — the \`memlog\` CLI is not on PATH (missing, or a dangling symlink). The read-half below still works, but \`memlog add\`/\`memlog search\` will fail. Do NOT attempt \`memlog\` shell commands until this is fixed: run \`make install\` in ${PLUGIN_ROOT} (then \`make doctor\` to verify). To read the log meanwhile, the raw file is ${LOGFILE}."
+fi
+
+# ---------------------------------------------------------------------------
+# Compose the body. Write-half warning first (it qualifies everything below),
+# then the mandate (the discipline), then the lessons.
 # ---------------------------------------------------------------------------
 BODY=""
 
+if [[ -n "$CLI_WARNING" ]]; then
+  BODY="$CLI_WARNING"
+fi
+
 if [[ -n "$MANDATE_BLOCK" ]]; then
-  BODY="**memlog mandate** — auto-loaded by the engineering-memlog plugin (no
+  MANDATE_TEXT="**memlog mandate** — auto-loaded by the engineering-memlog plugin (no
 manual paste needed). Treat the following as a standing instruction for this
 session: search the log before non-trivial work, and log non-obvious lessons
 after.
 ${MANDATE_BLOCK}"
+  if [[ -n "$BODY" ]]; then
+    BODY="${BODY}
+
+${MANDATE_TEXT}"
+  else
+    BODY="$MANDATE_TEXT"
+  fi
 fi
 
 if [[ -n "$SHORTLIST" ]]; then
