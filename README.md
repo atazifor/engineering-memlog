@@ -1,6 +1,6 @@
 # engineering-memlog
 
-**Persistent, cross-project engineering memory for AI coding agents.** Your agent writes hard-won lessons to a shared log — and reads them back *before* it works — so it stops re-deriving the same fix every session. Works with Claude Code (one-command plugin), Cursor, and any agent that reads a `CLAUDE.md` / `AGENTS.md` / `.cursorrules`.
+**Your AI coding agent keeps solving the same problems from scratch every session.** Give it a memory — a shared, searchable log of fixes it writes after work and auto-recalls before, across sessions and projects. Works with Claude Code (one-command plugin), Cursor, and any agent that reads a `CLAUDE.md` / `AGENTS.md` / `.cursorrules`.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)
