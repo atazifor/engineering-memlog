@@ -1,9 +1,8 @@
 # Makefile — pain-free install for the memlog CLI.
 #
-# The plugin's read-half (auto-injecting prior lessons) works the moment you
-# install the plugin, because its hooks call scripts by absolute path. The
-# write-half (`memlog add` / `memlog search`) needs the `memlog` CLI on your
-# PATH — that's what this Makefile sets up.
+# Packaged agent integrations bundle their own CLI entrypoint in bin/. This
+# Makefile installs the same CLI for standalone shell use and for agents that do
+# not load a Memlog package.
 #
 #   make install     symlink memlog into a bin dir on PATH, then verify
 #   make doctor      report install/PATH/python health (no changes)
@@ -21,7 +20,19 @@ REPO_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 SRC := $(REPO_DIR)/memlog
 DEST := $(BINDIR)/memlog
 
-.PHONY: install uninstall doctor
+.PHONY: install uninstall doctor test demo check-docs check
+
+test:
+	@PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+
+demo:
+	@./demo/run-baseline.sh
+	@./demo/run-demo.sh
+
+check-docs:
+	@PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_discoverability.DocumentationAssetTests -v
+
+check: test demo
 
 install:
 	@command -v python3 >/dev/null 2>&1 || { echo "✗ python3 not found — memlog needs Python 3.8+"; exit 1; }

@@ -1,0 +1,42 @@
+[
+  {
+    "query": "go json snake case",
+    "expected_id": "mem-1745905159",
+    "max_rank": 1
+  },
+  {
+    "query": "partial put bool false",
+    "expected_id": "mem-1746183760",
+    "max_rank": 1
+  },
+  {
+    "query": "gorm false default",
+    "expected_id": "mem-1746635611",
+    "max_rank": 1
+  },
+  {
+    "query": "cors patch browser request",
+    "expected_id": "mem-1747074644",
+    "max_rank": 1
+  },
+  {
+    "query": "next app router phantom tsc",
+    "expected_id": "mem-1747120328",
+    "max_rank": 1
+  },
+  {
+    "query": "unique config scope gorm oldest",
+    "expected_id": "mem-1747217119",
+    "max_rank": 1
+  },
+  {
+    "query": "frozen lockfile ci install",
+    "expected_id": "mem-1747321353",
+    "max_rank": 1
+  },
+  {
+    "query": "slugify underscore failure",
+    "expected_id": null,
+    "max_rank": 0
+  }
+]

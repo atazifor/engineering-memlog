@@ -1,0 +1,55 @@
+Engineering Memlog 0.2.0 reproducible demo
+Captured: 2026-09-15
+Compatible Claude Code version checked locally: 2.1.272
+Note: adapted and sanitized from a real Memlog lesson; bracketed skill decisions are narrated, while every test and Memlog result is real command output.
+
+=== 1 / 8  Reproduce the concrete failure ===
+$ python3 -m unittest -q
+AssertionError: "Upstream returned 404: endpoint is disabled" does not match "Unable to read JSON returned by upstream"
+FAIL: a local parser error hides the upstream HTTP 404
+
+=== 2 / 8  Search memory using evidence from the failure ===
+$ memlog search "integration JSON parse error upstream response"
+- 2026-09-15T12:00:00Z | Check upstream HTTP status before parsing the response body
+  repo=sanitized-demo service=billing-integration env=local
+  tags=python, http, integration, error-handling, observability
+  problem=An integration failure was reported as a JSON parse error even though the upstream endpoint returned HTTP 404 with a plain-text explanation.
+
+=== 3 / 8  Treat recall as a hypothesis ===
+[skill] Candidate says parsing may be erasing the upstream failure.
+[skill] Inspect current code; do not apply memory blindly.
+$ grep -n "json.loads\|status" integration.py
+8:def decode_download(status: int, body: str):
+10:        return json.loads(body)
+MATCH: the body is parsed before status is ever checked
+
+=== 4 / 8  Apply the smallest causal fix ===
+$ cp integration-fixed.py integration.py
+Preserved non-2xx status and body before parsing success JSON.
+
+=== 5 / 8  Verify the original failure ===
+$ python3 -m unittest -q
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK
+PASS: the error now identifies the upstream 404 and explanation
+
+=== 6 / 8  Save only after verification ===
+$ memlog add --json <verified-lesson>
+Appended memory entry: Verified upstream status is preserved before response parsing
+
+=== 7 / 8  A later session can retrieve the verified lesson ===
+$ memlog search "verified upstream status response parsing" --limit 1
+- 2026-09-15T19:26:38Z | Verified upstream status is preserved before response parsing
+  repo=sanitized-demo service=billing-integration env=local
+  tags=python, http, integration, error-handling, regression-test
+  problem=A plain-text HTTP 404 was misreported as a local JSON parsing failure.
+
+=== 8 / 8  A miss continues the investigation ===
+$ memlog search "postgres deadlock transaction retry"
+No matches found.
+[skill] No match is not a stop condition: return to local evidence,
+[skill] then use primary documentation or the web if uncertainty is external.
+
+Demo complete. The disposable store is removed on exit.

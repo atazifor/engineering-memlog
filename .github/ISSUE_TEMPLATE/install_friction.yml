@@ -1,0 +1,35 @@
+name: Installation friction
+description: Tell us where plugin or standalone setup became unclear or failed.
+title: "install: "
+labels: [installation]
+body:
+  - type: dropdown
+    id: path
+    attributes:
+      label: Installation path
+      options:
+        - Claude Code plugin
+        - Standalone CLI
+        - Custom provider
+    validations:
+      required: true
+  - type: textarea
+    id: step
+    attributes:
+      label: Where did setup stop?
+      description: Paste the sanitized command and output, and say which documentation you followed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, shell, Python version, and Claude Code version if applicable.
+    validations:
+      required: true

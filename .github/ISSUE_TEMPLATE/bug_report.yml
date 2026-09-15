@@ -1,0 +1,51 @@
+name: Bug report
+description: Report incorrect CLI, hook, skill, retrieval, or provider behavior.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not paste secrets or unsanitized Memlog entries."
+  - type: input
+    id: version
+    attributes:
+      label: Memlog version
+      description: Run `memlog --version` or read `.claude-plugin/plugin.json`.
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend
+      options:
+        - Built-in JSONL
+        - Custom provider
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened?
+      description: Include sanitized output and the command or plugin event involved.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: List the smallest steps using sanitized data.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, Claude Code version, and relevant configuration.
+    validations:
+      required: true

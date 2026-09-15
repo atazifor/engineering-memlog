@@ -1,7 +1,9 @@
 {
   "name": "engineering-memlog",
-  "description": "Close the engineering-memory loop: auto-inject relevant prior lessons on session start and on symptom-shaped prompts, plus a /recall command for explicit deep dive.",
+  "version": "0.2.0",
+  "description": "Debug with verified engineering memory using a systematic skill, bounded automatic recall, pluggable storage, and an integrity-checked bundled CLI.",
   "author": {
     "name": "atazifor"
-  }
+  },
+  "hooks": "./hooks/claude-hooks.json"
 }

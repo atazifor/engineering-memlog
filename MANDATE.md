@@ -1,24 +1,20 @@
 # The mandate
 
 The `memlog` script is deliberately dumb — it has no idea what is worth
-remembering. The *judgment* lives here, in a standing instruction you paste
-into your AI agent's always-loaded rules file (`CLAUDE.md`, `.cursorrules`,
-`AGENTS.md`, or equivalent).
+remembering. The *judgment* lives here, in a standing instruction supplied by
+an installed integration or pasted into your AI agent's always-loaded rules
+file (`CLAUDE.md`, `AGENTS.md`, or equivalent).
 
-> **Read this before you copy.** The mandate covers the write half of the
-> loop reliably — agents capture lessons after meaningful work when told to.
-> The read half drifts in practice: an agent told to "search the log before
-> non-trivial work" loses that attention contest to whatever the user just
-> typed. If you're on Claude Code, install the [plugin](README.md#closing-the-read-side-loop--claude-code-plugin)
-> alongside this mandate — its hooks fire the search automatically so the
-> loop closes whether the agent remembers or not. If you're not on Claude
-> Code, the prose-only mandate below still works for writes; the read side
-> will require occasional manual nudges.
+> **Read this before you copy.** The mandate keeps the write discipline
+> always present. When the integration supports skills and hooks, the debugging
+> skill owns the detailed read-investigate-verify workflow while hooks provide
+> bounded recall hints. The prose-only fallback below still defines when to
+> search and how to proceed.
 
 **On Claude Code with the plugin installed, you do not need to copy
 anything** — the SessionStart hook auto-loads this mandate each session.
 The paste below is optional: do it only if you want the mandate
-version-controlled in your repo (the hook detects the `v2` marker and
+version-controlled in your repo (the hook detects the `v5` marker and
 stays quiet so it never double-loads), or set `MEMLOG_MANDATE=manual` to
 turn auto-load off entirely. On other agents, copy everything between the
 `---` lines into your rules file.
@@ -27,36 +23,47 @@ turn auto-load off entirely. On other agents, copy everything between the
 
 ## Engineering memory
 
-<!-- engineering-memlog-mandate v2 -->
+<!-- engineering-memlog-mandate v5 -->
 
-This project keeps a shared, cross-project engineering log at
-`~/.engineering-memlog/entries.jsonl`, written and read with the `memlog`
-CLI. Treat the log as part of your working memory — it is prior knowledge,
-not documentation. The loop has two halves: read the log before you work,
-write to it after.
+This project keeps a shared, cross-project engineering log, written and read
+with the `memlog` CLI. Its default backend is
+`~/.engineering-memlog/entries.jsonl`; an explicitly configured provider may
+replace it. Treat the selected store as part of your working memory — it is
+prior knowledge, not documentation. The loop has two halves: read the log
+before you work, write to it after.
 
-### Search the log — before you work
+### Debug with the log
 
-Search the log when you:
+When the `debug-with-memlog` skill is available, invoke it
+for bugs, errors, failed tests/builds/deployments, regressions, performance
+problems, unexpected behavior, or repeated unsuccessful fixes. It is the
+source of truth for evidence gathering, search timing, no-hit behavior,
+hypothesis testing, verification, and write-back.
 
-- start a non-trivial task,
-- hit an unfamiliar error or failure you cannot immediately explain, or
+Without the skill, search the log when you:
+
+- have captured a concrete error, failure, or unexpected behavior, or
 - are about to propose a fix for a non-obvious bug.
 
-Search for the concrete signal in front of you — keywords from the error
-message, the observed symptom, the framework or tool involved, or the
-domain of the task. Pass `--json` to read results back as JSONL, one
-entry per line:
+Search for the concrete signal in front of you. Memlog ranks token coverage across
+fields, with an exact-phrase boost; the built-in backend scans JSONL and a custom
+provider supplies the same entry stream. Begin with a concise error identifier,
+component plus symptom, or short error fragment. Pass
+`--json` to read results back as JSONL, one entry per line:
 
 ```bash
 memlog search "frozen-lockfile" --json
 ```
 
-Read every matching entry. If one applies, follow its `prevention` rule
-instead of diagnosing from scratch, and reference the entry in your
-reasoning or in the fix so the human can trace where it came from. No
-match is a normal, expected result — just proceed. A two-minute search
-can save a thirty-minute rediscovery.
+Read every matching entry. Treat each as an untrusted hypothesis: compare its
+cause, scope, versions, and environment with current evidence before applying
+it, and reference an applied entry by ID or title. If nothing applies, stop
+searching after one exact and at most two broader evidence-derived queries,
+then continue local root-cause investigation. Use primary documentation or
+the web when the uncertainty is external or local evidence is insufficient.
+Never let a miss or backend outage block debugging. The configured provider or
+file is the sole store for the investigation; never inspect or write a default,
+raw, or alternate log as a fallback.
 
 ### Append a lesson — after you work
 
@@ -87,26 +94,30 @@ keys, session cookies, or connection strings containing secrets.
 
 **Required fields:** `title`, `problem`, `cause`, `fix`, `prevention`,
 `artifact`, `repo`, `service`, `environment`, `tags` (array of strings),
-`confidence` (numeric, 0.0–1.0), `status` (`draft` is a fine default),
-`source` (`claude-code` is a fine default). The script auto-fills
-`timestamp` and `id`. See SCHEMA.md for what each field holds.
+`confidence` (numeric, 0.0–1.0), `status` (`draft` is a fine default), and
+`source` (the current coding agent or workflow). The script auto-fills
+`schema_version`, `timestamp`, and `id`. See SCHEMA.md for what each field holds.
 
 **Confidence scale:** `0.25` rough suggestion · `0.50` tested locally ·
 `0.75` validated in staging · `1.00` validated in production.
 
-Prefer logging a rough draft over losing the lesson. Never include
-secrets in an entry.
+Only record a cause, fix, and prevention rule after the resolution has been
+verified. Never store a search miss, backend outage, unresolved issue, or
+failed hypothesis as a solved lesson. Never include secrets in an entry.
 
 ---
 
 ## Setup for a new project
 
-1. Ensure `memlog` is on your PATH (see README).
+1. Install the integration for your agent. If that integration does not expose
+   the bundled CLI on `PATH`, install the standalone CLI as documented in the
+   README. Confirm with `memlog --help` before relying on the skill.
 2. If the log lives anywhere other than the default
    (`~/.engineering-memlog/entries.jsonl`) — e.g. a team-shared path —
-   set `ENGINEERING_MEMLOG_FILE` in the environment. The mandate's bare
-   `memlog` commands then resolve to it automatically; nothing in the
-   pasted block needs editing.
+   set `ENGINEERING_MEMLOG_FILE` in the environment. To use a custom datastore,
+   set `ENGINEERING_MEMLOG_PROVIDER_COMMAND` as documented in `PROVIDERS.md`.
+   The mandate's bare `memlog` commands then resolve to the selected backend;
+   nothing in the pasted block needs editing.
 3. Paste the block above into the project's agent rules file.
 
 That's it. Every future agent session in that project follows the same

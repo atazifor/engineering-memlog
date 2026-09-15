@@ -1,0 +1,29 @@
+Engineering Memlog no-memory baseline
+Captured: 2026-09-15
+Compatible Claude Code version checked locally: 2.1.272
+Note: adapted and sanitized from a real Memlog lesson; this records real test and shell output and is not a model-performance benchmark.
+
+=== 1 / 4  Reproduce without memory ===
+$ python3 -m unittest -q
+AssertionError: "Upstream returned 404: endpoint is disabled" does not match "Unable to read JSON returned by upstream"
+
+=== 2 / 4  Re-derive the cause from current code ===
+$ grep -n "json.loads\|status" integration.py
+8:def decode_download(status: int, body: str):
+10:        return json.loads(body)
+$ python3 -c "decode_download(404, plain_text_body)"
+    raise IntegrationError("Unable to read JSON returned by upstream") from error
+OBSERVATION: our parser names itself instead of the upstream response.
+
+=== 3 / 4  Apply the locally derived fix ===
+$ cp integration-fixed.py integration.py
+
+=== 4 / 4  Verify ===
+$ python3 -m unittest -q
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK
+PASS: the fix works, but no prior lesson shortened the diagnosis.
+
+Baseline complete. The disposable workspace is removed on exit.

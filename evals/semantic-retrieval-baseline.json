@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {"hit_at_1": true, "hit_at_3": true, "hit_at_5": true, "id": "literal-upstream-parser", "kind": "lexical-control", "negative_result_count": null, "top_ids": ["upstream-status-before-parse"]},
+    {"hit_at_1": false, "hit_at_3": false, "hit_at_5": false, "id": "paraphrase-upstream-parser", "kind": "hard-paraphrase", "negative_result_count": null, "top_ids": []},
+    {"hit_at_1": true, "hit_at_3": true, "hit_at_5": true, "id": "paraphrase-desired-state", "kind": "hard-paraphrase", "negative_result_count": null, "top_ids": ["desired-state-replaces-list"]},
+    {"hit_at_1": true, "hit_at_3": true, "hit_at_5": true, "id": "paraphrase-rendered-outcome", "kind": "hard-paraphrase", "negative_result_count": null, "top_ids": ["rendered-outcome-not-class", "desired-state-replaces-list"]},
+    {"hit_at_1": true, "hit_at_3": true, "hit_at_5": true, "id": "paraphrase-negotiation", "kind": "hard-paraphrase", "negative_result_count": null, "top_ids": ["content-negotiation-needs-header", "create-only-config-import", "upstream-status-before-parse"]},
+    {"hit_at_1": false, "hit_at_3": false, "hit_at_5": false, "id": "paraphrase-create-only", "kind": "hard-paraphrase", "negative_result_count": null, "top_ids": []},
+    {"hit_at_1": true, "hit_at_3": true, "hit_at_5": true, "id": "paraphrase-parallel-mutators", "kind": "hard-paraphrase", "negative_result_count": null, "top_ids": ["parallel-mutators-share-tree", "upstream-status-before-parse"]},
+    {"hit_at_1": null, "hit_at_3": null, "hit_at_5": null, "id": "unrelated-control", "kind": "negative-control", "negative_result_count": 0, "top_ids": []}
+  ],
+  "dataset_version": 1,
+  "lexical_by_kind": {
+    "hard-paraphrase": {"cases": 6, "hits_at_1": 4, "hits_at_3": 4, "hits_at_5": 4},
+    "lexical-control": {"cases": 1, "hits_at_1": 1, "hits_at_3": 1, "hits_at_5": 1}
+  }
+}
