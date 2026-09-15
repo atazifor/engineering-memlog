@@ -11,7 +11,7 @@
 >
 > **The fix:** before finishing a task, the agent appends a structured lesson — *problem, cause, fix, prevention* — to one shared JSONL log. Next time the symptom shows up, it searches the log and skips the re-derivation.
 
-That's the whole thing: **one JSONL file, a ~200-line stdlib script, and one paragraph of instructions for your agent.** No database, no embeddings, no network calls. On Claude Code, a plugin makes the read-half automatic — relevant prior lessons are injected into context before you type.
+That's the whole thing: **one JSONL file, a ~200-line stdlib script, and a focused debugging workflow for your agent.** No database, no embeddings, no network calls. On Claude Code, a plugin combines that workflow with automatic retrieval hints so relevant prior lessons surface while the failure is being investigated.
 
 **Keywords:** AI agent memory · persistent memory for LLM coding assistants · Claude Code plugin · Cursor / AGENTS.md · cross-project knowledge base · stop repeating bugs.
 
@@ -21,7 +21,7 @@ The division is the whole idea.
 
 **1. A structured log.** One append-only file, `entries.jsonl` — one JSON object per line, shared across every project. See [SCHEMA.md](SCHEMA.md).
 
-**2. A mandate.** One paragraph in your agent's rules file (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`). It tells the agent to search the log before non-trivial work and append a lesson after. See [MANDATE.md](MANDATE.md) — copy it verbatim.
+**2. An agent policy.** The [mandate](MANDATE.md) defines when to preserve a verified lesson. The Claude Code plugin also ships `debug-with-memlog`, a model-invocable skill that searches after a concrete failure is captured, validates any hit as a hypothesis, continues local diagnosis on a miss, and writes back only after verification.
 
 **3. A CLI.** `memlog add`, `search`, `list`. ~200 lines of Python, standard library only.
 
@@ -66,9 +66,9 @@ In practice you rarely run `add` by hand. Your agent does, because the mandate t
 
 The agent uses the same CLI you do — no embeddings, no MCP server required. Two paths, depending on whether the plugin is installed.
 
-**With the [mandate](MANDATE.md) only (any agent, any IDE):** after a meaningful task, the agent runs `memlog add` to append a structured entry. When it remembers, it also runs `memlog search` against a fresh symptom and follows the matching entry's `prevention` rule. The write half is reliable; the read half drifts in practice — that's the gap the plugin fills.
+**With the [mandate](MANDATE.md) only (any agent, any IDE):** after a verified, meaningful resolution, the agent runs `memlog add` to append a structured entry. Once it has captured a concrete failure, it searches for a distinctive literal symptom and treats each result as an untrusted hypothesis. A miss leads back to local evidence gathering, then primary documentation or the web when the uncertainty is external—not to more unbounded Memlog queries.
 
-**With the plugin installed (Claude Code only):** a SessionStart hook auto-injects the top relevant entries against the project's sniffed signature before you type. A UserPromptSubmit hook auto-injects matches whenever your prompt looks symptom-shaped (errors, failures, 4xx/5xx, framework names). The agent never has to remember to look — the look already happened. **The same SessionStart hook also auto-loads the [mandate](MANDATE.md)** for the write half, so plugin users don't need to paste anything into a per-project rules file — both halves of the loop travel with the install. The auto-load is idempotent: if you *do* paste the mandate into a `CLAUDE.md` (it carries a version marker), the hook detects it and stays quiet so it never double-loads; set `MEMLOG_MANDATE=manual` to turn auto-load off entirely. See the next section for the install commands.
+**With the plugin installed (Claude Code only):** the model-invocable debugging skill owns the read-investigate-verify loop. SessionStart and UserPromptSubmit hooks supply bounded retrieval hints, including failures discovered after the session begins. **The SessionStart hook also auto-loads the [mandate](MANDATE.md)**, so plugin users do not need to paste anything into a project rules file. The auto-load is idempotent: if you *do* paste the mandate into a `CLAUDE.md` (it carries a version marker), the hook detects it and stays quiet; set `MEMLOG_MANDATE=manual` to turn auto-load off entirely.
 
 ## Closing the read-side loop — Claude Code plugin
 
@@ -76,6 +76,7 @@ Prose mandates work for the write side but agents reliably **drift past the "sea
 
 This repo ships a Claude Code plugin that fixes that by making the read side automatic, not voluntary:
 
+- **`debug-with-memlog` skill** activates for bugs, errors, failed tests/builds/deployments, regressions, performance problems, and unexpected behavior. It reproduces first, performs one exact and at most two broader searches, treats results as untrusted hypotheses, continues systematic local diagnosis after a miss or backend outage, tests one cause at a time, and preserves only a verified lesson.
 - **SessionStart hook** sniffs the project's languages / frameworks / repo / service from manifest files (`go.mod`, `package.json`, `pom.xml`, `Cargo.toml`, …), ranks entries by tag/repo/service overlap + recency + confidence, and injects the top ~6 as a system reminder at session boot. The agent sees relevant prior lessons before it sees the first user prompt.
 - **UserPromptSubmit hook** scans each prompt for symptom-shaped text (errors, failures, 4xx/5xx, framework names) and, on a hit, extracts likely keywords (quoted strings, known tech tokens) and injects matches. Silent on benign prompts — no per-turn token bloat.
 - **`/recall <query>`** slash command for explicit deep dive.
@@ -92,7 +93,7 @@ Requires Claude Code 1.0.123+. Run these slash commands inside any Claude Code s
 /reload-plugins
 ```
 
-The `/reload-plugins` step registers the plugin's commands and hooks in the current session — without it, `/recall` and the UserPromptSubmit hook won't appear until you next launch Claude Code.
+The `/reload-plugins` step registers the plugin's skill, commands, and hooks in the current session — without it, `debug-with-memlog`, `/recall`, and the UserPromptSubmit hook won't appear until you next launch Claude Code.
 
 The **SessionStart** hook fires once per session at startup, so it won't trigger inside the session you installed from. To see it work, **quit Claude Code and open a brand-new session in a project directory** (one with a `package.json` / `go.mod` / `pom.xml` / `Cargo.toml` / etc. for the sniffer to read). The auto-injection lands as a system reminder before the first user prompt.
 

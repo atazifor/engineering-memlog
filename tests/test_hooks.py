@@ -66,7 +66,7 @@ class SessionHookTests(IsolatedTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertEqual(output["hookEventName"], "SessionStart")
-        self.assertIn("engineering-memlog-mandate v2", output["additionalContext"])
+        self.assertIn("engineering-memlog-mandate v3", output["additionalContext"])
 
     def test_manual_mode_is_silent_without_matches(self) -> None:
         self.install_healthy_cli_marker()
@@ -77,7 +77,7 @@ class SessionHookTests(IsolatedTestCase):
     def test_current_project_marker_suppresses_duplicate_mandate(self) -> None:
         self.install_healthy_cli_marker()
         (self.project / "CLAUDE.md").write_text(
-            "<!-- engineering-memlog-mandate v2 -->\n",
+            "<!-- engineering-memlog-mandate v3 -->\n",
             encoding="utf-8",
         )
 

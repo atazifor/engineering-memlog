@@ -7,7 +7,7 @@
 # conversation before the first user prompt. It contributes two things,
 # each independently:
 #
-#   1. The mandate — the standing "search before you work, log after"
+#   1. The mandate — the standing debugging-memory and verified-write
 #      instruction. Auto-loaded so the user never has to paste it into
 #      CLAUDE.md. Self-suppresses if a current-version mandate is already
 #      pasted in a rules file, and can be turned off with MEMLOG_MANDATE=manual.
@@ -54,7 +54,7 @@ PROJECT_CWD="${CLAUDE_PROJECT_DIR:-${PWD:-$(pwd)}}"
 # an older pasted copy. The marker string lives in MANDATE.md's block, so a
 # repo that pasted v2 is detected; one stuck on an older (or no) marker is
 # treated as "not current" and the hook loads the fresh mandate anyway.
-MANDATE_VERSION="v2"
+MANDATE_VERSION="v3"
 MANDATE_MARKER="engineering-memlog-mandate ${MANDATE_VERSION}"
 
 # ---------------------------------------------------------------------------
@@ -126,8 +126,8 @@ fi
 if [[ -n "$MANDATE_BLOCK" ]]; then
   MANDATE_TEXT="**memlog mandate** — auto-loaded by the engineering-memlog plugin (no
 manual paste needed). Treat the following as a standing instruction for this
-session: search the log before non-trivial work, and log non-obvious lessons
-after.
+session: use the debugging skill for failures, and preserve only verified,
+non-obvious lessons afterward.
 ${MANDATE_BLOCK}"
   if [[ -n "$BODY" ]]; then
     BODY="${BODY}
