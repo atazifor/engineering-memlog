@@ -107,7 +107,9 @@ failed hypothesis as a solved lesson. Never include secrets in an entry.
 
 ## Setup for a new project
 
-1. Ensure `memlog` is on your PATH (see README).
+1. With the Claude Code plugin, use its bundled `memlog`; Claude Code adds the
+   plugin's `bin/` directory to Bash-tool `PATH`. Without the plugin, install the
+   standalone CLI so `memlog` is on your PATH (see README).
 2. If the log lives anywhere other than the default
    (`~/.engineering-memlog/entries.jsonl`) — e.g. a team-shared path —
    set `ENGINEERING_MEMLOG_FILE` in the environment. The mandate's bare

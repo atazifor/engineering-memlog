@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "engineering-memlog",
-      "description": "Pairs a systematic debugging skill with bounded recall of prior engineering lessons. Reproduces failures, validates matches as hypotheses, continues local diagnosis on a miss, verifies fixes, and includes /recall for explicit searches.",
+      "description": "Pairs a systematic debugging skill with bounded recall and a bundled CLI. Reproduces failures, validates matches as hypotheses, continues local diagnosis on a miss, verifies fixes, and includes /recall for explicit searches.",
       "author": {
         "name": "atazifor"
       },

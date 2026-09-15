@@ -4,6 +4,10 @@ This file is auto-loaded by the engineering-memlog plugin and forms the
 agent's working contract with the log. Two halves: read before you work,
 write after.
 
+The plugin bundles `memlog` in `bin/`, which Claude Code adds to Bash-tool
+`PATH`. Use that command for both reads and writes; no separate CLI installation
+or fallback log is required.
+
 ## How the log gets into your context
 
 The plugin closes the read side **without relying on you to remember**:

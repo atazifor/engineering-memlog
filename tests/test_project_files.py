@@ -24,7 +24,12 @@ class ProjectFileTests(unittest.TestCase):
                     path.read_text(encoding="utf-8"),
                 )
 
+    def test_plugin_install_docs_use_the_bundled_cli(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("plugin's `bin/` directory", readme)
+        self.assertIn("without a separate clone or `make install`", readme)
+        self.assertNotIn("only adds the read-side hooks", readme)
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -1,10 +1,35 @@
 import json
 import shutil
+import subprocess
 
 from tests.support import MEMLOG, REPO_ROOT, IsolatedTestCase, make_entry, write_jsonl
 
 
 class MemlogCliTests(IsolatedTestCase):
+    def test_plugin_bin_exposes_the_bundled_cli_on_path(self) -> None:
+        write_jsonl(self.log, [make_entry()])
+        env = self.env.copy()
+        env["PATH"] = f"{REPO_ROOT / 'bin'}:{env['PATH']}"
+
+        result = subprocess.run(
+            [
+                "memlog",
+                "--file",
+                str(self.log),
+                "search",
+                "postgres timeout",
+                "--json",
+            ],
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=10,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["id"], "mem-test-1")
+
     def test_cli_can_import_retrieval_code_through_an_installed_symlink(self) -> None:
         installed = self.temp / "bin" / "memlog"
         installed.symlink_to(MEMLOG)

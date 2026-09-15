@@ -1,6 +1,14 @@
 import json
+import shutil
 
-from tests.support import PROMPT_HOOK, SESSION_HOOK, IsolatedTestCase, make_entry, write_jsonl
+from tests.support import (
+    PROMPT_HOOK,
+    REPO_ROOT,
+    SESSION_HOOK,
+    IsolatedTestCase,
+    make_entry,
+    write_jsonl,
+)
 
 
 class PromptHookTests(IsolatedTestCase):
@@ -108,8 +116,23 @@ class SessionHookTests(IsolatedTestCase):
         self.assertIn("React hydration mismatch", output["additionalContext"])
         self.assertRegex(output["additionalContext"], r"untrusted\s+hypothesis")
 
-    def test_missing_cli_warning_is_valid_hook_output(self) -> None:
+    def test_bundled_cli_avoids_warning_when_global_cli_is_missing(self) -> None:
         result = self.run_hook(SESSION_HOOK, env_updates={"MEMLOG_MANDATE": "manual"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_missing_bundled_cli_warning_is_valid_hook_output(self) -> None:
+        broken_plugin = self.temp / "broken-plugin"
+        broken_bin = broken_plugin / "bin"
+        broken_bin.mkdir(parents=True)
+        shutil.copy2(REPO_ROOT / "bin" / "memlog", broken_bin / "memlog")
+        result = self.run_hook(
+            SESSION_HOOK,
+            env_updates={
+                "CLAUDE_PLUGIN_ROOT": str(broken_plugin),
+                "MEMLOG_MANDATE": "manual",
+            },
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertIn("write-half unavailable", output["additionalContext"])

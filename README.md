@@ -31,6 +31,8 @@ The storage layer is deliberately dumb: append one JSON line and scan the file o
 
 `python3` (3.8+) is the only requirement.
 
+For standalone shell use, Cursor, or another non-plugin agent:
+
 ```bash
 git clone https://github.com/atazifor/engineering-memlog
 cd engineering-memlog
@@ -101,18 +103,23 @@ Requires Claude Code 1.0.123+. Run these slash commands inside any Claude Code s
 /reload-plugins
 ```
 
-The `/reload-plugins` step registers the plugin's skill, commands, and hooks in the current session — without it, `debug-with-memlog`, `/recall`, and the UserPromptSubmit hook won't appear until you next launch Claude Code.
+The `/reload-plugins` step registers the plugin's skill, commands, hooks, and
+bundled CLI in the current session. Claude Code automatically adds executables
+from a plugin's `bin/` directory to Bash-tool `PATH`, so `memlog search` and
+`memlog add` work without a separate clone or `make install`. See Claude Code's
+[plugin file-location reference](https://code.claude.com/docs/en/plugins-reference#file-locations-reference).
+Without a reload, `debug-with-memlog`, `/recall`, and the prompt hook will not
+appear until the next launch.
 
 The **SessionStart** hook fires once per session at startup, so it won't trigger inside the session you installed from. To see it work, **quit Claude Code and open a brand-new session in a project directory** (one with a `package.json` / `go.mod` / `pom.xml` / `Cargo.toml` / etc. for the sniffer to read). The auto-injection lands as a system reminder before the first user prompt.
 
 For a quick sanity check in a fresh session, ask: *"What memlog entries do you have in your starting context? Show me the top 3 titles."* If the hook fired, the model will list them.
 
-You'll also want the `memlog` CLI on your PATH so the plugin's hooks can write to a single shared log (the install above only adds the read-side hooks; the CLI lives separately):
-
-```bash
-git clone https://github.com/atazifor/engineering-memlog ~/engineering-memlog
-make -C ~/engineering-memlog install   # symlink onto PATH + verify; `make doctor` to check
-```
+The bundled CLI and hooks use the same default
+`~/.engineering-memlog/entries.jsonl` file. Set `ENGINEERING_MEMLOG_FILE` before
+starting Claude Code to select a different store. Use the standalone installation
+above only when you also want `memlog` in ordinary terminal sessions or in another
+agent that does not load this plugin.
 
 Per-session opt-out: set `MEMLOG_PLUGIN_DISABLE=1` in your shell to skip the whole hook, or `MEMLOG_MANDATE=manual` to keep the ranked-entry injection but turn off mandate auto-load (e.g. when you maintain the mandate by hand in `CLAUDE.md`). Other knobs (entry limit, score threshold, custom log path) documented in `CLAUDE.md` inside this repo.
 

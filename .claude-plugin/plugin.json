@@ -1,6 +1,6 @@
 {
   "name": "engineering-memlog",
-  "description": "Debug with verified engineering memory: a systematic debugging skill, bounded automatic recall, and a /recall command for explicit searches.",
+  "description": "Debug with verified engineering memory using a systematic skill, bounded automatic recall, a bundled CLI, and /recall for explicit searches.",
   "author": {
     "name": "atazifor"
   }

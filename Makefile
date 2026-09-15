@@ -1,9 +1,8 @@
 # Makefile — pain-free install for the memlog CLI.
 #
-# The plugin's read-half (auto-injecting prior lessons) works the moment you
-# install the plugin, because its hooks call scripts by absolute path. The
-# write-half (`memlog add` / `memlog search`) needs the `memlog` CLI on your
-# PATH — that's what this Makefile sets up.
+# The Claude Code plugin bundles its own CLI entrypoint in bin/. This Makefile
+# installs the same CLI for standalone shell use and for agents that do not load
+# the plugin.
 #
 #   make install     symlink memlog into a bin dir on PATH, then verify
 #   make doctor      report install/PATH/python health (no changes)
