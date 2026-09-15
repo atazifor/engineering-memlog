@@ -94,7 +94,7 @@ keys, session cookies, or connection strings containing secrets.
 `artifact`, `repo`, `service`, `environment`, `tags` (array of strings),
 `confidence` (numeric, 0.0–1.0), `status` (`draft` is a fine default),
 `source` (`claude-code` is a fine default). The script auto-fills
-`timestamp` and `id`. See SCHEMA.md.
+`schema_version`, `timestamp`, and `id`. See SCHEMA.md.
 
 **Confidence scale:** `0.25` rough suggestion · `0.50` tested locally ·
 `0.75` validated in staging · `1.00` validated in production.

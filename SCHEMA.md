@@ -7,7 +7,7 @@ that can append and read valid lines is a valid client.
 
 ## Fields
 
-An entry has 13 author-supplied fields, in three groups, plus 2 the tool
+An entry has 13 author-supplied fields, in three groups, plus 3 the tool
 fills in.
 
 ### The lesson — the reason the entry exists
@@ -44,8 +44,27 @@ avoid it next time.
 
 ### Auto-filled by the tool
 
-`timestamp` (RFC3339, UTC) and `id`. Do not supply these — `memlog add`
-sets them.
+| field | what it holds |
+|---|---|
+| `schema_version` | integer format version; currently `1` |
+| `timestamp` | RFC3339 timestamp with a timezone; generated in UTC |
+| `id` | collision-resistant `mem-` identifier generated from a UUID |
+
+Do not supply `timestamp` or `id` to `memlog add`; the command owns those
+bookkeeping fields. Records written before schema versioning omit
+`schema_version` and are treated as legacy version 1 during validation.
+
+## Integrity guarantees
+
+- A newly created data file uses mode `0600`; existing file permissions are not
+  changed, so team-shared logs keep their administrator-selected mode.
+- Each entry is encoded as one JSON line and appended with one `O_APPEND` write,
+  preventing concurrent writers from selecting the same file offset.
+- UUID-backed IDs avoid the same-second collisions produced by the original
+  timestamp-only IDs.
+- `memlog validate` checks every non-empty line, required field types and values,
+  supported schema versions, timestamp shape, and duplicate IDs without changing
+  the file. A missing file is a valid empty log; invalid records produce exit 1.
 
 ## Confidence scale
 

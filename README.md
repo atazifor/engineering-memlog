@@ -60,6 +60,9 @@ memlog search "frozen lockfile install failure"
 
 # browse, newest first
 memlog list --reverse
+
+# check schemas and duplicate IDs without changing the file
+memlog validate
 ```
 
 In practice you rarely run `add` by hand. Your agent does, because the mandate tells it to.
@@ -147,7 +150,9 @@ The narrowness is the point. It's an opinion, expressed as 200 lines of code.
 
 **What it writes:**
 
-- `entries.jsonl` — append-only, when the agent runs `memlog add`. That's the entire write surface.
+- `entries.jsonl` — append-only, when the agent runs `memlog add`. New files are
+  created with mode `0600`; existing permissions are preserved. That's the entire
+  write surface.
 
 **What it sends over the network:**
 
