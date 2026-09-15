@@ -1,0 +1,34 @@
+{
+  "name": "engineering-memlog",
+  "version": "0.2.0",
+  "description": "Recall verified engineering lessons during systematic debugging and preserve only reusable, verified resolutions.",
+  "author": {
+    "name": "atazifor",
+    "url": "https://github.com/atazifor"
+  },
+  "homepage": "https://github.com/atazifor/engineering-memlog",
+  "repository": "https://github.com/atazifor/engineering-memlog",
+  "license": "MIT",
+  "keywords": [
+    "debugging",
+    "engineering-memory",
+    "agent-skills"
+  ],
+  "interface": {
+    "displayName": "Engineering Memlog",
+    "shortDescription": "Recall and preserve verified debugging lessons",
+    "longDescription": "Search prior engineering lessons when a concrete failure appears, validate them against current evidence, and save only non-obvious resolutions after verification.",
+    "developerName": "atazifor",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/atazifor/engineering-memlog",
+    "defaultPrompt": [
+      "Debug this failure with Memlog",
+      "Search Memlog for this error",
+      "Save this verified debugging lesson"
+    ]
+  }
+}

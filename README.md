@@ -3,13 +3,15 @@
 ## Recall verified fixes when debugging
 
 An AI coding agent solves a difficult failure, the session ends, and the next
-session solves it again. Engineering Memlog gives Claude Code a small,
-cross-project log of verified debugging lessons and a systematic skill that
-searches it when a concrete failure appears.
+session solves it again. Engineering Memlog gives compatible coding agents a
+small, cross-project log of verified debugging lessons and a systematic skill
+that searches it when a concrete failure appears.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)
-![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
+![Agent Skill](https://img.shields.io/badge/Agent%20Skills-compatible-6f42c1)
+![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-live%20tested-d97757)
+![Codex skill](https://img.shields.io/badge/Codex%20skill-live%20tested-10a37f)
 ![dependencies: stdlib only](https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen)
 
 ![A terminal demo that reproduces an integration error masking an upstream 404, recalls a matching response-handling lesson, verifies the fix, and saves the result](assets/memlog-demo.gif)
@@ -41,7 +43,14 @@ that narrow class of hard-won knowledge in a reusable format. See the
 Current source version: **0.2.0** · [changelog](CHANGELOG.md) ·
 [draft release notes](releases/v0.2.0.md)
 
-## Install for Claude Code
+## Install
+
+The canonical `debug-with-memlog` skill follows the open Agent Skills format.
+Claude Code and Codex packages reuse that same skill; host-specific files only
+handle installation and optional recall triggers. Exact support boundaries and
+dated evidence are in the [agent integration matrix](docs/agent-support.md).
+
+### Claude Code
 
 Run these commands inside Claude Code:
 
@@ -55,7 +64,33 @@ That installs the skill, hooks, `/recall` command, and bundled `memlog` CLI
 without a separate clone or `make install`. Start a new Claude Code session after
 installation so the SessionStart hook can run.
 
-The plugin's `debug-with-memlog` skill activates for bugs, errors, failed tests,
+### Codex
+
+Clone the repository, register it as a local marketplace, and install the plugin:
+
+```bash
+git clone https://github.com/atazifor/engineering-memlog
+cd engineering-memlog
+codex plugin marketplace add "$PWD"
+codex plugin add engineering-memlog@engineering-memlog
+```
+
+Start a new Codex task after installation. The installed skill-discovery and
+Memlog recall workflow passed the recorded
+[Codex evaluation](evals/codex-skill.md). Automatic Codex hook activation did
+not pass its live gate, so it is not promised; the skill itself performs the
+search after the agent captures a concrete failure.
+
+### Other compatible agents
+
+Install or copy `skills/debug-with-memlog/` using the host's Agent Skills
+mechanism and make `memlog` available on `PATH`. If the whole repository is
+installed as a plugin, the skill can use its bundled `scripts/memlog` fallback.
+For hosts without Agent Skills, copy the short [mandate](MANDATE.md) into the
+agent's rules file. Cursor, GitHub Copilot CLI, and Gemini CLI are currently
+documented integration targets, not live-tested Memlog packages.
+
+The `debug-with-memlog` skill activates for bugs, errors, failed tests,
 builds and deployments, regressions, performance problems, and unexpected
 behavior. It follows this bounded loop:
 
@@ -111,7 +146,8 @@ distinctly and never silently fall back to the local file. See
 
 ## CLI usage
 
-The plugin bundles the CLI. For standalone shell use, Cursor, or another agent:
+The packaged integrations bundle the CLI. For standalone shell use or an agent
+without a Memlog package:
 
 ```bash
 git clone https://github.com/atazifor/engineering-memlog
@@ -129,7 +165,7 @@ with `make install BINDIR=/usr/local/bin`.
 memlog search "tailwind oxide native binding node 18"
 
 # Append a verified lesson
-memlog add --json '{"title":"...","problem":"...","cause":"...","fix":"...","prevention":"...","artifact":"...","repo":"...","service":"...","environment":"local","tags":["..."],"confidence":0.5,"status":"draft","source":"claude-code"}'
+memlog add --json '{"title":"...","problem":"...","cause":"...","fix":"...","prevention":"...","artifact":"...","repo":"...","service":"...","environment":"local","tags":["..."],"confidence":0.5,"status":"draft","source":"your-agent"}'
 
 # Browse newest first, or check integrity without changing the store
 memlog list --reverse
@@ -139,18 +175,20 @@ memlog validate
 Use `--file` or `ENGINEERING_MEMLOG_FILE` to select another JSONL file. The
 [schema](SCHEMA.md) documents every field and the confidence scale.
 
-## What the plugin does
+## What the agent integrations do
 
 - `debug-with-memlog` owns the recall-investigate-verify-write loop.
-- SessionStart supplies up to six relevant lessons based on the repository,
+- The Claude Code SessionStart hook supplies up to six relevant lessons based on the repository,
   languages, frameworks, service, recency, and confidence.
-- UserPromptSubmit recognizes symptom-shaped prompts and injects bounded matches;
+- The Claude Code UserPromptSubmit hook recognizes symptom-shaped prompts and injects bounded matches;
   benign prompts stay silent.
-- PostToolUse and PostToolUseFailure inspect Bash results for strong test, build,
+- Claude Code PostToolUse and PostToolUseFailure inspect Bash results for strong test, build,
   and deployment failure signals. This catches failures discovered after the
   prompt—even when a pipeline masks the failing process's exit status—while
   ordinary command errors and successful checks stay silent.
-- `/recall <query>` gives the user an explicit search path.
+- Claude Code's `/recall <query>` gives the user an explicit search path.
+- Codex loads the same skill from its package; the live evaluation proves
+  skill-driven recall, while automatic Codex hooks remain unverified.
 - `MEMLOG_PLUGIN_DISABLE=1` disables all hooks for a session.
 - `MEMLOG_MANDATE=manual` keeps recall but disables automatic mandate loading.
 
@@ -168,9 +206,9 @@ relevance hints. The plugin's `bin/` directory is added to the Bash-tool PATH by
 Claude Code, so the bundled CLI is available to the skill. Details are in the
 [Claude plugin file-location reference](https://code.claude.com/docs/en/plugins-reference#file-locations-reference).
 
-Agents outside Claude Code can copy the short [mandate](MANDATE.md) into their
-rules file. It preserves the write discipline and the same no-hit behavior, but
-does not provide Claude Code's automatic skill and hook activation.
+Agents without a packaged integration can copy the short [mandate](MANDATE.md)
+into their rules file. It preserves the write discipline and the same no-hit
+behavior, but does not provide automatic skill or hook activation.
 
 ## Security and data flow
 
@@ -178,8 +216,8 @@ With the built-in backend, storage and ranking stay local and only the selected
 JSONL file is written. New files use mode `0600`; existing permissions are
 preserved. Prompt text, project hints, and bounded failing Bash output may be used
 as local search queries. Recalled entries and hook guidance are inserted into the
-active Claude conversation context and are therefore processed wherever the
-configured Claude environment runs. A custom provider controls its own storage
+active agent conversation context and are therefore processed wherever that
+configured agent environment runs. A custom provider controls its own storage
 and network access and is user-selected executable code.
 
 Do not log secrets, tokens, credentials, private keys, cookies, or connection
@@ -197,6 +235,7 @@ For the full disclosure and threat boundaries, see [SECURITY.md](SECURITY.md).
 - [Comparison with adjacent tools](docs/comparison.md)
 - [Semantic and hybrid retrieval proposal](docs/retrieval-roadmap.md)
 - [Discoverability audit](docs/discoverability-audit.md)
+- [Agent integration status and evidence](docs/agent-support.md)
 - [Contributing guide](CONTRIBUTING.md)
 
 Engineering Memlog is deliberately narrow: one structured lesson format, one

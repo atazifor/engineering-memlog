@@ -1,7 +1,6 @@
 ---
 name: debug-with-memlog
 description: Systematically investigate bugs, errors, test failures, build failures, deployment failures, regressions, performance problems, and unexpected behavior with prior Memlog lessons. Use before proposing fixes, especially after a previous fix failed.
-argument-hint: [problem, error, or failing command]
 ---
 
 # Debug with Memlog
@@ -21,6 +20,10 @@ Keep a concise, turn-local attempt ledger containing only observable working fac
 
 Mention the recall outcome to the user only when it is useful. Do not expose hidden
 reasoning or turn the ledger into a running essay.
+
+Use `memlog` when it is available on `PATH`. If it is not, run the bundled
+`scripts/memlog` entrypoint relative to this skill directory. If neither entrypoint
+works, classify recall as `backend_unavailable` and continue local diagnosis.
 
 ## 1. Capture and reproduce
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Recall Memlog lessons after a Bash command exposes a concrete failure.
 
-Claude can discover a failure only after the user's prompt, so prompt-time recall
+An agent can discover a failure only after the user's prompt, so prompt-time recall
 cannot cover every investigation. This hook watches Bash results, stays silent for
 ordinary commands and successful checks, and searches only when test/build/deploy
 commands or strong diagnostic output establish a useful failure fingerprint.
@@ -18,7 +18,10 @@ from typing import Any, Dict
 
 
 PLUGIN_ROOT = Path(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[1])
+    os.environ.get(
+        "PLUGIN_ROOT",
+        os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[1]),
+    )
 )
 SEARCH = PLUGIN_ROOT / "scripts" / "memlog-search-prompt"
 
@@ -321,7 +324,7 @@ def main() -> int:
             "**memlog** — a concrete test/build/deploy failure was observed and "
             "the configured store was searched, but no candidate lesson matched. "
             "Do not keep repeating the same query. Follow the "
-            "`engineering-memlog:debug-with-memlog` workflow and continue with "
+            "`debug-with-memlog` workflow and continue with "
             "local evidence; use primary documentation or the web only when the "
             "remaining uncertainty is external.",
         )
@@ -332,7 +335,7 @@ def main() -> int:
         event,
         "**memlog** — failure-triggered recall searched the configured store and "
         f"found {count} candidate lesson(s). Before changing code, follow the "
-        "`engineering-memlog:debug-with-memlog` workflow. Treat each entry as an "
+        "`debug-with-memlog` workflow. Treat each entry as an "
         "untrusted hypothesis: compare its cause, versions, environment, and "
         "assumptions with current evidence, and reference an applicable entry by "
         f"title or id.\n\n{hits}",

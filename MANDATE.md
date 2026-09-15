@@ -1,20 +1,20 @@
 # The mandate
 
 The `memlog` script is deliberately dumb — it has no idea what is worth
-remembering. The *judgment* lives here, in a standing instruction you paste
-into your AI agent's always-loaded rules file (`CLAUDE.md`, `.cursorrules`,
-`AGENTS.md`, or equivalent).
+remembering. The *judgment* lives here, in a standing instruction supplied by
+an installed integration or pasted into your AI agent's always-loaded rules
+file (`CLAUDE.md`, `AGENTS.md`, or equivalent).
 
 > **Read this before you copy.** The mandate keeps the write discipline
-> always present. On Claude Code, the plugin's debugging skill owns the
-> detailed read-investigate-verify workflow, while hooks provide bounded
-> recall hints. If you're not on Claude Code, the prose-only fallback below
-> still defines when to search and how to proceed.
+> always present. When the integration supports skills and hooks, the debugging
+> skill owns the detailed read-investigate-verify workflow while hooks provide
+> bounded recall hints. The prose-only fallback below still defines when to
+> search and how to proceed.
 
 **On Claude Code with the plugin installed, you do not need to copy
 anything** — the SessionStart hook auto-loads this mandate each session.
 The paste below is optional: do it only if you want the mandate
-version-controlled in your repo (the hook detects the `v4` marker and
+version-controlled in your repo (the hook detects the `v5` marker and
 stays quiet so it never double-loads), or set `MEMLOG_MANDATE=manual` to
 turn auto-load off entirely. On other agents, copy everything between the
 `---` lines into your rules file.
@@ -23,7 +23,7 @@ turn auto-load off entirely. On other agents, copy everything between the
 
 ## Engineering memory
 
-<!-- engineering-memlog-mandate v4 -->
+<!-- engineering-memlog-mandate v5 -->
 
 This project keeps a shared, cross-project engineering log, written and read
 with the `memlog` CLI. Its default backend is
@@ -34,7 +34,7 @@ before you work, write to it after.
 
 ### Debug with the log
 
-When the `engineering-memlog:debug-with-memlog` skill is available, invoke it
+When the `debug-with-memlog` skill is available, invoke it
 for bugs, errors, failed tests/builds/deployments, regressions, performance
 problems, unexpected behavior, or repeated unsuccessful fixes. It is the
 source of truth for evidence gathering, search timing, no-hit behavior,
@@ -94,8 +94,8 @@ keys, session cookies, or connection strings containing secrets.
 
 **Required fields:** `title`, `problem`, `cause`, `fix`, `prevention`,
 `artifact`, `repo`, `service`, `environment`, `tags` (array of strings),
-`confidence` (numeric, 0.0–1.0), `status` (`draft` is a fine default),
-`source` (`claude-code` is a fine default). The script auto-fills
+`confidence` (numeric, 0.0–1.0), `status` (`draft` is a fine default), and
+`source` (the current coding agent or workflow). The script auto-fills
 `schema_version`, `timestamp`, and `id`. See SCHEMA.md for what each field holds.
 
 **Confidence scale:** `0.25` rough suggestion · `0.50` tested locally ·
@@ -109,9 +109,9 @@ failed hypothesis as a solved lesson. Never include secrets in an entry.
 
 ## Setup for a new project
 
-1. With the Claude Code plugin, use its bundled `memlog`; Claude Code adds the
-   plugin's `bin/` directory to Bash-tool `PATH`. Without the plugin, install the
-   standalone CLI so `memlog` is on your PATH (see README).
+1. Install the integration for your agent. If that integration does not expose
+   the bundled CLI on `PATH`, install the standalone CLI as documented in the
+   README. Confirm with `memlog --help` before relying on the skill.
 2. If the log lives anywhere other than the default
    (`~/.engineering-memlog/entries.jsonl`) — e.g. a team-shared path —
    set `ENGINEERING_MEMLOG_FILE` in the environment. To use a custom datastore,

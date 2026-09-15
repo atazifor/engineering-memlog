@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# user-prompt-submit.sh — Claude Code UserPromptSubmit hook for engineering-memlog.
+# user-prompt-submit.sh — UserPromptSubmit hook for engineering-memlog.
 #
 # Fires on every user prompt. Reads the hook payload (JSON on stdin),
 # extracts the prompt text, and calls memlog-search-prompt which:
@@ -44,7 +44,7 @@ if [[ ! -x "$SEARCH" ]]; then
   exit 0
 fi
 
-# Read the hook payload. Claude Code passes JSON on stdin; we try to
+# Read the hook payload. Supported hosts pass JSON on stdin; we try to
 # extract the prompt text from common fields and fall back to the raw
 # stdin if it isn't JSON.
 STDIN_RAW="$(cat || true)"

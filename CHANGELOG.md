@@ -13,6 +13,21 @@ All notable changes to engineering-memlog are documented here. Versions follow
   lexical baseline for future design contributions.
 - Failure-triggered recall after Bash test/build/deploy output, including failures
   hidden by successful pipelines, with silent handling of routine command errors.
+- A host-neutral Agent Skill, Agent Plugins 1.0 manifest, Codex compatibility
+  manifest, and repository-root Codex marketplace catalog.
+- A dated agent-support matrix plus installed Codex evaluation for package
+  installation, skill discovery, recall, applicability checking, and no-write
+  behavior.
+
+### Changed
+
+- The skill now resolves either `memlog` on `PATH` or its bundled fallback and
+  treats a missing CLI as a backend outage rather than stopping diagnosis.
+- Claude-specific failure events and environment variables live in a dedicated
+  hook manifest; the shared workflow and mandate use agent-neutral names.
+- The README now distinguishes live-tested skill support from automatic hook
+  support and does not advertise automatic Codex hooks after their live gate
+  failed.
 
 ## [0.2.0] — 2026-09-15
 

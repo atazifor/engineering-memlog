@@ -35,6 +35,12 @@ it, and how you verified it. Provider contributions should document their data
 flow, failure behavior, timeout expectations, and whether they access a network.
 New retrieval behavior should include ranking cases or regression tests.
 
+For a new coding-agent integration, follow the gates in
+[`docs/agent-support.md`](docs/agent-support.md). Reuse the canonical
+`debug-with-memlog` skill and shared retrieval scripts; keep event-schema and
+packaging differences in a small host adapter. Do not advertise an agent as
+supported until its installed-agent evaluation is recorded.
+
 Semantic retrieval work should begin with the evaluation and interface sequence
 in the [retrieval proposal](docs/retrieval-roadmap.md). The project is ready for
 design and evaluation contributions, but not an unreviewed vector-database or

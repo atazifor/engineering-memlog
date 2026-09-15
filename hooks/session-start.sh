@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 #
-# session-start.sh — Claude Code SessionStart hook for engineering-memlog.
+# session-start.sh — SessionStart hook for engineering-memlog.
 #
 # Runs once at the start of every session and emits a JSON envelope whose
-# hookSpecificOutput.additionalContext Claude Code injects into the
-# conversation before the first user prompt. It contributes two things,
+# hookSpecificOutput.additionalContext the host injects into the conversation
+# before the first user prompt. It contributes two things,
 # each independently:
 #
 #   1. The mandate — the standing debugging-memory and verified-write
-#      instruction. Auto-loaded so the user never has to paste it into
-#      CLAUDE.md. Self-suppresses if a current-version mandate is already
+#      instruction. Self-suppresses if a current-version mandate is already
 #      pasted in a rules file, and can be turned off with MEMLOG_MANDATE=manual.
 #
 #   2. Ranked prior lessons — the top-K memlog entries relevant to this
@@ -18,7 +17,7 @@
 # Either part may be present without the other; if neither is, the hook
 # stays silent (exit 0).
 #
-# Output contract (Claude Code 1.0.123+):
+# Output contract (supported hook hosts):
 #   {
 #     "hookSpecificOutput": {
 #       "hookEventName": "SessionStart",
@@ -46,17 +45,31 @@ if [[ "${MEMLOG_PLUGIN_DISABLE:-0}" == "1" ]]; then
   exit 0
 fi
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+PLUGIN_ROOT="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}}"
 
-# CLAUDE_PROJECT_DIR is the documented project-cwd env var for hooks.
-# Fall back to PWD if not set (e.g. when running this script directly).
-PROJECT_CWD="${CLAUDE_PROJECT_DIR:-${PWD:-$(pwd)}}"
+# Claude exposes CLAUDE_PROJECT_DIR. Codex supplies cwd in the hook payload.
+# Read both and fall back to PWD for direct execution and compatible hosts.
+HOOK_INPUT="$(cat || true)"
+INPUT_CWD=""
+if [[ -n "$HOOK_INPUT" ]] && command -v python3 >/dev/null 2>&1; then
+  INPUT_CWD="$(printf "%s" "$HOOK_INPUT" | python3 -c '
+import json, sys
+try:
+    value = json.load(sys.stdin)
+except Exception:
+    value = {}
+cwd = value.get("cwd") if isinstance(value, dict) else None
+if isinstance(cwd, str):
+    print(cwd)
+' 2>/dev/null || true)"
+fi
+PROJECT_CWD="${CLAUDE_PROJECT_DIR:-${INPUT_CWD:-${PWD:-$(pwd)}}}"
 
 # Bump this when the mandate text changes in a way that should re-load over
 # an older pasted copy. The marker string lives in MANDATE.md's block, so a
 # repo that pasted v2 is detected; one stuck on an older (or no) marker is
 # treated as "not current" and the hook loads the fresh mandate anyway.
-MANDATE_VERSION="v4"
+MANDATE_VERSION="v5"
 MANDATE_MARKER="engineering-memlog-mandate ${MANDATE_VERSION}"
 
 # ---------------------------------------------------------------------------
@@ -69,6 +82,8 @@ if [[ "${MEMLOG_MANDATE:-auto}" != "manual" ]]; then
   already_pasted=""
   for f in "${PROJECT_CWD}/CLAUDE.md" \
            "${PROJECT_CWD}/CLAUDE.local.md" \
+           "${PROJECT_CWD}/AGENTS.md" \
+           "${PROJECT_CWD}/.agents/AGENTS.md" \
            "${HOME}/.claude/CLAUDE.md"; do
     if [[ -f "$f" ]] && grep -qF "$MANDATE_MARKER" "$f" 2>/dev/null; then
       already_pasted="1"
@@ -109,9 +124,8 @@ fi
 
 # ---------------------------------------------------------------------------
 # Part 2.5: bundled CLI health check.
-# Claude Code adds an enabled plugin's bin/ directory to Bash-tool PATH. Check
-# the bundled entrypoint directly because a user's interactive PATH can differ
-# from the hook environment and should not be required for plugin operation.
+# Check the bundled entrypoint directly because agent hosts differ in whether
+# plugin bin/ directories are added to PATH.
 CLI_WARNING=""
 BUNDLED_CLI="${PLUGIN_ROOT}/bin/memlog"
 if [[ ! -x "$BUNDLED_CLI" ]] || ! "$BUNDLED_CLI" --help >/dev/null 2>&1; then

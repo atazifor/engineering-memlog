@@ -81,10 +81,10 @@ class DocumentationAssetTests(unittest.TestCase):
             [(str(index), str(len(delays))) for index in range(1, len(delays) + 1)],
         )
 
-    def test_readme_leads_with_plugin_install_and_no_hit_behavior(self) -> None:
+    def test_readme_leads_with_agent_install_and_no_hit_behavior(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertLess(
-            readme.index("## Install for Claude Code"),
+            readme.index("## Install"),
             readme.index("## CLI usage"),
         )
         self.assertIn("After a miss\nor an unavailable backend", readme)

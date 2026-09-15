@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_CLI="${SKILL_DIR}/../../bin/memlog"
+
+if [[ ! -x "$PLUGIN_CLI" ]]; then
+  echo "memlog: bundled CLI not found; install the full plugin or put memlog on PATH" >&2
+  exit 127
+fi
+
+exec "$PLUGIN_CLI" "$@"

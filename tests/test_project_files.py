@@ -1,8 +1,9 @@
 import json
-from pathlib import Path
+import re
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,25 +12,95 @@ ROOT = Path(__file__).resolve().parents[1]
 class ProjectFileTests(unittest.TestCase):
     def test_plugin_json_files_parse(self) -> None:
         for path in (
+            ROOT / "plugin.json",
             ROOT / ".claude-plugin" / "plugin.json",
             ROOT / ".claude-plugin" / "marketplace.json",
+            ROOT / ".agents" / "plugins" / "marketplace.json",
+            ROOT / ".codex-plugin" / "plugin.json",
             ROOT / "hooks" / "hooks.json",
+            ROOT / "hooks" / "claude-hooks.json",
         ):
             with self.subTest(path=path):
                 self.assertIsInstance(json.loads(path.read_text(encoding="utf-8")), dict)
 
-    def test_bash_failure_recall_is_registered_for_both_exit_paths(self) -> None:
-        config = json.loads(
+    def test_host_hook_manifests_use_supported_failure_events(self) -> None:
+        codex = json.loads(
             (ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8")
         )["hooks"]
+        claude = json.loads(
+            (ROOT / "hooks" / "claude-hooks.json").read_text(encoding="utf-8")
+        )["hooks"]
+        self.assertIn("PostToolUse", codex)
+        self.assertNotIn("PostToolUseFailure", codex)
         for event in ("PostToolUse", "PostToolUseFailure"):
             with self.subTest(event=event):
-                registration = config[event][0]
+                registration = claude[event][0]
                 self.assertEqual(registration["matcher"], "Bash")
                 self.assertIn(
                     "post-tool-recall.py",
                     registration["hooks"][0]["command"],
                 )
+
+    def test_manifests_route_to_their_host_contract(self) -> None:
+        claude = json.loads(
+            (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        codex = json.loads(
+            (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        portable = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
+        codex_marketplace = json.loads(
+            (ROOT / ".agents" / "plugins" / "marketplace.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(claude["hooks"], "./hooks/claude-hooks.json")
+        self.assertNotIn("hooks", codex)
+        self.assertEqual(
+            codex_marketplace["plugins"][0]["source"],
+            {"source": "local", "path": "."},
+        )
+        self.assertEqual(
+            portable["$schema"],
+            "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+        )
+
+    def test_every_manifest_version_matches_the_cli(self) -> None:
+        versions = {
+            json.loads(path.read_text(encoding="utf-8"))["version"]
+            for path in (
+                ROOT / "plugin.json",
+                ROOT / ".claude-plugin" / "plugin.json",
+                ROOT / ".codex-plugin" / "plugin.json",
+            )
+        }
+        self.assertEqual(versions, {"0.2.0"})
+
+    def test_portable_manifest_matches_published_schema_constraints(self) -> None:
+        manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
+        allowed = {
+            "$schema",
+            "name",
+            "version",
+            "description",
+            "author",
+            "homepage",
+            "repository",
+            "license",
+            "keywords",
+            "extensions",
+        }
+        self.assertEqual(
+            manifest["$schema"],
+            "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+        )
+        self.assertFalse(set(manifest) - allowed)
+        self.assertRegex(
+            manifest["name"],
+            re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"),
+        )
+        self.assertLessEqual(len(manifest["name"]), 64)
 
     def test_documentation_has_no_obsolete_engineering_memory_paths(self) -> None:
         for path in (ROOT / "CLAUDE.md", ROOT / "commands" / "recall.md"):
@@ -47,7 +118,7 @@ class ProjectFileTests(unittest.TestCase):
 
     def test_security_docs_disclose_model_context_and_custom_provider_flow(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("active Claude conversation context", readme)
+        self.assertIn("active agent conversation context", readme)
         self.assertIn("custom provider controls its own storage", readme)
 
     def test_release_version_has_one_manifest_source_and_matches_cli(self) -> None:

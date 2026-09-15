@@ -156,6 +156,30 @@ class CleanInstallE2ETests(unittest.TestCase):
         self.assertEqual(later_search.returncode, 0, later_search.stderr)
         self.assertIn(lesson["title"], later_search.stdout)
 
+    def test_skill_bundled_cli_works_without_plugin_bin_on_path(self) -> None:
+        env = self.env.copy()
+        env["PATH"] = env["PATH"].replace(f"{self.plugin / 'bin'}:", "")
+        wrapper = (
+            self.plugin
+            / "skills"
+            / "debug-with-memlog"
+            / "scripts"
+            / "memlog"
+        )
+
+        result = subprocess.run(
+            [str(wrapper), "--help"],
+            text=True,
+            capture_output=True,
+            env=env,
+            cwd=self.project,
+            timeout=10,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Durable engineering memory", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

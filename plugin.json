@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering-memlog",
+  "version": "0.2.0",
+  "description": "Recall verified engineering lessons during systematic debugging and preserve only reusable, verified resolutions.",
+  "author": {
+    "name": "atazifor"
+  },
+  "homepage": "https://github.com/atazifor/engineering-memlog",
+  "repository": "https://github.com/atazifor/engineering-memlog",
+  "license": "MIT",
+  "keywords": [
+    "debugging",
+    "engineering-memory",
+    "agent-skills"
+  ]
+}

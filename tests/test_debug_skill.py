@@ -9,6 +9,30 @@ EVALS = ROOT / "evals" / "debug-with-memlog.md"
 
 
 class DebugSkillTests(unittest.TestCase):
+    def test_skill_uses_only_portable_frontmatter(self) -> None:
+        text = SKILL.read_text(encoding="utf-8")
+        frontmatter = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+        self.assertIsNotNone(frontmatter)
+        keys = {
+            line.split(":", 1)[0].strip()
+            for line in frontmatter.group(1).splitlines()
+            if line and not line.startswith(" ") and ":" in line
+        }
+        self.assertEqual(keys, {"name", "description"})
+
+    def test_canonical_skill_is_agent_neutral(self) -> None:
+        text = SKILL.read_text(encoding="utf-8").lower()
+        for host_specific in (
+            "claude",
+            "codex",
+            "cursor",
+            "gemini",
+            "copilot",
+            "engineering-memlog:debug-with-memlog",
+        ):
+            with self.subTest(host_specific=host_specific):
+                self.assertNotIn(host_specific, text)
+
     def test_skill_is_model_invocable_for_debugging_triggers(self) -> None:
         text = SKILL.read_text(encoding="utf-8")
         frontmatter = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
@@ -74,10 +98,10 @@ class DebugSkillTests(unittest.TestCase):
         instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
         hook = (ROOT / "hooks" / "session-start.sh").read_text(encoding="utf-8")
 
-        self.assertIn("engineering-memlog-mandate v4", mandate)
-        self.assertIn("engineering-memlog:debug-with-memlog", mandate)
+        self.assertIn("engineering-memlog-mandate v5", mandate)
+        self.assertIn("`debug-with-memlog` skill", mandate)
         self.assertIn("engineering-memlog:debug-with-memlog", instructions)
-        self.assertIn('MANDATE_VERSION="v4"', hook)
+        self.assertIn('MANDATE_VERSION="v5"', hook)
         self.assertEqual(mandate.count("Without the skill, search the log when you:"), 1)
         self.assertNotIn("search the log before non-trivial work", hook)
 

@@ -1,8 +1,8 @@
 # Makefile — pain-free install for the memlog CLI.
 #
-# The Claude Code plugin bundles its own CLI entrypoint in bin/. This Makefile
-# installs the same CLI for standalone shell use and for agents that do not load
-# the plugin.
+# Packaged agent integrations bundle their own CLI entrypoint in bin/. This
+# Makefile installs the same CLI for standalone shell use and for agents that do
+# not load a Memlog package.
 #
 #   make install     symlink memlog into a bin dir on PATH, then verify
 #   make doctor      report install/PATH/python health (no changes)
