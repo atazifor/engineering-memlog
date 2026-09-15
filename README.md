@@ -12,7 +12,7 @@ searches it when a concrete failure appears.
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
 ![dependencies: stdlib only](https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen)
 
-![A terminal demo that reproduces a slugify failure, recalls a matching lesson, verifies the fix, and saves the result](assets/memlog-demo.gif)
+![A terminal demo that reproduces a SQLite cascade failure, recalls a matching connection-scoping lesson, verifies the fix, and saves the result](assets/memlog-demo.gif)
 
 Without Memlog:
 
@@ -68,6 +68,20 @@ behavior. It follows this bounded loop:
 5. After the fix passes verification, save only a reusable lesson with the
    problem, cause, fix, and prevention rule.
 
+### What deserves a Memlog entry
+
+Memlog is a curated record of expensive, reusable engineering knowledge—not a
+history of every error an agent encounters. Save a lesson only when the root
+cause is verified, non-obvious, likely to recur, and useful enough to materially
+shorten a future investigation. Good entries preserve framework or
+infrastructure behavior, subtle cross-layer causes, and concrete prevention
+rules.
+
+Do not save typos, syntax mistakes, routine command failures, transient errors,
+retries, search misses, speculative diagnoses, failed hypotheses, or fixes that
+were not verified. If the lesson is already obvious from the error and the line
+of code beside it, it does not belong in Memlog.
+
 Try the deterministic local walkthrough with `./demo/run-demo.sh`. It runs in a
 temporary directory and never touches your real log. The checked-in
 [with-Memlog transcript](demo/transcript.txt) records the commands and output
@@ -82,6 +96,12 @@ The zero-configuration backend is one append-only JSONL file at
 `~/.engineering-memlog/entries.jsonl`. Search is a deterministic, field-aware
 lexical ranking over that file. There is no database, embedding model, telemetry,
 or remote service in the built-in path.
+
+In plain language, the current search is ranked keyword search. It tokenizes the
+query and entry fields, gives more weight to titles, tags, problems, causes, and
+prevention rules, boosts exact phrases and broader query coverage, and uses
+confidence and recency only as small tie-breakers. Version 0.2.0 does not perform
+embedding or semantic search.
 
 The entry schema—not the file—is the contract. Set
 `ENGINEERING_MEMLOG_PROVIDER_COMMAND` to connect a SQLite adapter, hosted store,

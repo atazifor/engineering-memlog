@@ -5,20 +5,28 @@ Note: this records real test and shell output for the same fixture; it is not a 
 
 === 1 / 4  Reproduce without memory ===
 $ python3 -m unittest -q
-AssertionError: 'user_profile-name' != 'user-profile-name'
+AssertionError: 1 != 0 : deleting a project must not leave orphan tasks
 
 === 2 / 4  Re-derive the cause from current code ===
-$ grep replace slugify.py
-    return value.strip().lower().replace(" ", "-")
-OBSERVATION: the implementation replaces spaces but not underscores.
+$ grep -n "PRAGMA\|connect" database.py
+4:def connect(path: str) -> sqlite3.Connection:
+5:    return sqlite3.connect(path)
+9:    with connect(path) as database:
+10:        database.execute("PRAGMA foreign_keys = ON")
+21:    with connect(path) as database:
+27:    with connect(path) as database:
+32:    with connect(path) as database:
+$ python3 -c "from database import connect; ... PRAGMA foreign_keys"
+PRAGMA foreign_keys = 0
+OBSERVATION: migration enables enforcement, but runtime connections do not.
 
 === 3 / 4  Apply the locally derived fix ===
-$ cp slugify-fixed.py slugify.py
+$ cp database-fixed.py database.py
 
 === 4 / 4  Verify ===
 $ python3 -m unittest -q
 ----------------------------------------------------------------------
-Ran 1 test in 0.000s
+Ran 1 test in 0.002s
 
 OK
 PASS: the fix works, but no prior lesson shortened the diagnosis.

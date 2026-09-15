@@ -5,45 +5,45 @@ Note: bracketed skill decisions are narrated; every test and Memlog result below
 
 === 1 / 8  Reproduce the concrete failure ===
 $ python3 -m unittest -q
-AssertionError: 'user_profile-name' != 'user-profile-name'
-FAIL: underscores remain in the generated slug
+AssertionError: 1 != 0 : deleting a project must not leave orphan tasks
+FAIL: deleting a project leaves an orphan task
 
 === 2 / 8  Search memory using evidence from the failure ===
-$ memlog search "slugify underscore separator"
-- 2026-09-15T12:00:00Z | Slugify must normalize underscores and whitespace together
-  repo=sanitized-demo service=routing env=local
-  tags=python, slugify, normalization, underscores
-  problem=Route slug test expected user-profile-name but received user_profile-name.
+$ memlog search "sqlite delete cascade orphan foreign_keys"
+- 2026-09-15T12:00:00Z | SQLite foreign-key enforcement must be enabled on every connection
+  repo=sanitized-demo service=task-api env=local
+  tags=python, sqlite, foreign-keys, cascade, data-integrity
+  problem=Deleting a parent row left orphan child rows even though the schema declared ON DELETE CASCADE.
 
 === 3 / 8  Treat recall as a hypothesis ===
-[skill] Candidate says spaces-only replacement misses underscores.
+[skill] Candidate says foreign-key enforcement is connection-local.
 [skill] Inspect current code; do not apply memory blindly.
-$ grep replace slugify.py
-    return value.strip().lower().replace(" ", "-")
-MATCH: current implementation has the remembered failure mode
+$ python3 -c "from database import connect; ... PRAGMA foreign_keys"
+PRAGMA foreign_keys = 0
+MATCH: an ordinary application connection has enforcement disabled
 
 === 4 / 8  Apply the smallest causal fix ===
-$ cp slugify-fixed.py slugify.py
-Changed the separator rule from a literal space to [whitespace_or_underscore]+.
+$ cp database-fixed.py database.py
+Moved PRAGMA foreign_keys = ON into the shared connection factory.
 
 === 5 / 8  Verify the original failure ===
 $ python3 -m unittest -q
 ----------------------------------------------------------------------
-Ran 1 test in 0.000s
+Ran 1 test in 0.004s
 
 OK
-PASS: mixed spaces and underscores normalize to one hyphen
+PASS: deleting a project now cascades to its tasks
 
 === 6 / 8  Save only after verification ===
 $ memlog add --json <verified-lesson>
-Appended memory entry: Verified slug separator normalization in the demo
+Appended memory entry: Verified SQLite foreign-key enforcement on runtime connections
 
 === 7 / 8  A later session can retrieve the verified lesson ===
-$ memlog search "verified slug separator regression" --limit 1
-- 2026-09-15T19:04:30Z | Verified slug separator normalization in the demo
-  repo=sanitized-demo service=routing env=local
-  tags=python, slugify, normalization, regression-test
-  problem=The slugify regression left underscores in mixed-separator input.
+$ memlog search "verified sqlite foreign key runtime connection" --limit 1
+- 2026-09-15T19:23:09Z | Verified SQLite foreign-key enforcement on runtime connections
+  repo=sanitized-demo service=task-api env=local
+  tags=python, sqlite, foreign-keys, cascade, regression-test
+  problem=Deleting a project left an orphan task even though the schema declared ON DELETE CASCADE.
 
 === 8 / 8  A miss continues the investigation ===
 $ memlog search "postgres deadlock transaction retry"

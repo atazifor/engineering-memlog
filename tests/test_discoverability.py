@@ -66,6 +66,8 @@ class DocumentationAssetTests(unittest.TestCase):
         self.assertIn("After a miss\nor an unavailable backend", readme)
         self.assertIn("assets/memlog-demo.gif", readme)
         self.assertIn("docs/comparison.md", readme)
+        self.assertIn("not a\nhistory of every error", readme)
+        self.assertIn("does not perform\nembedding or semantic search", readme)
 
 
 class ReproducibleDemoTests(unittest.TestCase):
@@ -96,11 +98,11 @@ class ReproducibleDemoTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = result.stdout
         for evidence in (
-            "FAIL: underscores remain",
-            "Slugify must normalize underscores",
-            "MATCH: current implementation",
-            "PASS: mixed spaces and underscores",
-            "Appended memory entry: Verified slug separator normalization",
+            "FAIL: deleting a project leaves an orphan task",
+            "SQLite foreign-key enforcement must be enabled",
+            "MATCH: an ordinary application connection",
+            "PASS: deleting a project now cascades",
+            "Appended memory entry: Verified SQLite foreign-key enforcement",
             "A later session can retrieve",
             "No matches found.",
             "No match is not a stop condition",
