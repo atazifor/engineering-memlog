@@ -1,32 +1,27 @@
 Engineering Memlog no-memory baseline
 Captured: 2026-09-15
 Compatible Claude Code version checked locally: 2.1.272
-Note: this records real test and shell output for the same fixture; it is not a model-performance benchmark.
+Note: adapted and sanitized from a real Memlog lesson; this records real test and shell output and is not a model-performance benchmark.
 
 === 1 / 4  Reproduce without memory ===
 $ python3 -m unittest -q
-AssertionError: 1 != 0 : deleting a project must not leave orphan tasks
+AssertionError: "Upstream returned 404: endpoint is disabled" does not match "Unable to read JSON returned by upstream"
 
 === 2 / 4  Re-derive the cause from current code ===
-$ grep -n "PRAGMA\|connect" database.py
-4:def connect(path: str) -> sqlite3.Connection:
-5:    return sqlite3.connect(path)
-9:    with connect(path) as database:
-10:        database.execute("PRAGMA foreign_keys = ON")
-21:    with connect(path) as database:
-27:    with connect(path) as database:
-32:    with connect(path) as database:
-$ python3 -c "from database import connect; ... PRAGMA foreign_keys"
-PRAGMA foreign_keys = 0
-OBSERVATION: migration enables enforcement, but runtime connections do not.
+$ grep -n "json.loads\|status" integration.py
+8:def decode_download(status: int, body: str):
+10:        return json.loads(body)
+$ python3 -c "decode_download(404, plain_text_body)"
+    raise IntegrationError("Unable to read JSON returned by upstream") from error
+OBSERVATION: our parser names itself instead of the upstream response.
 
 === 3 / 4  Apply the locally derived fix ===
-$ cp database-fixed.py database.py
+$ cp integration-fixed.py integration.py
 
 === 4 / 4  Verify ===
 $ python3 -m unittest -q
 ----------------------------------------------------------------------
-Ran 1 test in 0.002s
+Ran 1 test in 0.000s
 
 OK
 PASS: the fix works, but no prior lesson shortened the diagnosis.

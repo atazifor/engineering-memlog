@@ -1,4 +1,5 @@
 import re
+import json
 from pathlib import Path
 import struct
 import subprocess
@@ -9,6 +10,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DocumentationAssetTests(unittest.TestCase):
+    def test_semantic_retrieval_material_is_sanitized_and_baseline_is_stable(self) -> None:
+        dataset_path = ROOT / "evals" / "semantic-retrieval-cases.json"
+        dataset = json.loads(dataset_path.read_text(encoding="utf-8"))
+        entry_ids = {entry["id"] for entry in dataset["entries"]}
+        self.assertGreaterEqual(len(entry_ids), 6)
+        self.assertGreaterEqual(len(dataset["cases"]), 8)
+        for case in dataset["cases"]:
+            self.assertTrue(set(case["relevant"]).issubset(entry_ids))
+
+        normalized = dataset_path.read_text(encoding="utf-8").lower()
+        for private_term in ("nourri", "myafrinic", "jkheritage", "netsuite"):
+            self.assertNotIn(private_term, normalized)
+
+        result = subprocess.run(
+            [str(ROOT / "scripts" / "evaluate-semantic-readiness"), "--check"],
+            cwd=str(ROOT),
+            text=True,
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_relative_markdown_links_resolve(self) -> None:
         pattern = re.compile(r"!?\[[^]]*\]\(([^)]+)\)")
         failures = []
@@ -98,11 +122,11 @@ class ReproducibleDemoTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = result.stdout
         for evidence in (
-            "FAIL: deleting a project leaves an orphan task",
-            "SQLite foreign-key enforcement must be enabled",
-            "MATCH: an ordinary application connection",
-            "PASS: deleting a project now cascades",
-            "Appended memory entry: Verified SQLite foreign-key enforcement",
+            "FAIL: a local parser error hides the upstream HTTP 404",
+            "Check upstream HTTP status before parsing",
+            "MATCH: the body is parsed before status",
+            "PASS: the error now identifies the upstream 404",
+            "Appended memory entry: Verified upstream status",
             "A later session can retrieve",
             "No matches found.",
             "No match is not a stop condition",

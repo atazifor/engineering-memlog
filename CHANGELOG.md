@@ -5,6 +5,13 @@ All notable changes to engineering-memlog are documented here. Versions follow
 
 ## [Unreleased]
 
+### Added
+
+- A sanitized demo adapted from a real integration lesson where response parsing
+  masked an upstream HTTP 404.
+- A semantic/hybrid retrieval proposal, sanitized evaluation corpus, and locked
+  lexical baseline for future design contributions.
+
 ## [0.2.0] — 2026-09-15
 
 ### Added

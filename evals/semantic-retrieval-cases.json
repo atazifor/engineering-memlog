@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "provenance": "Sanitized mechanisms adapted from real Memlog lessons; project and customer identifiers removed.",
+  "entries": [
+    {
+      "id": "upstream-status-before-parse",
+      "title": "Check upstream status before parsing an error body",
+      "problem": "A remote 404 with plain text was reported as a local JSON parser failure.",
+      "cause": "The wrapper deserialized every response before checking HTTP status, masking the actionable upstream response.",
+      "prevention": "Preserve status and sanitized body first; parse only successful responses.",
+      "tags": ["http", "integration", "observability"]
+    },
+    {
+      "id": "desired-state-replaces-list",
+      "title": "A desired-state API update removes list items that are not restated",
+      "problem": "Promoting one release silently removed an existing release from the destination track.",
+      "cause": "The update endpoint replaced the complete release list instead of applying a delta.",
+      "prevention": "Read current state and either preserve every supported field or refuse unsafe automation.",
+      "tags": ["api", "deployment", "desired-state"]
+    },
+    {
+      "id": "rendered-outcome-not-class",
+      "title": "Assert rendered visibility rather than a reveal class",
+      "problem": "A page shipped blank while the test confirmed that the reveal class was present.",
+      "cause": "The assertion checked an implementation marker instead of effective opacity through the ancestor chain.",
+      "prevention": "Test pixels or computed user-visible outcomes and mutation-test the guard.",
+      "tags": ["browser", "css", "testing"]
+    },
+    {
+      "id": "content-negotiation-needs-header",
+      "title": "A content-negotiation test must send the negotiated header",
+      "problem": "A command-line probe appeared to prove that locale routing ignored French visitors.",
+      "cause": "The probe sent no language preference and therefore measured only the default fallback.",
+      "prevention": "Send explicit headers for both branches plus a no-header control.",
+      "tags": ["http", "localization", "measurement"]
+    },
+    {
+      "id": "create-only-config-import",
+      "title": "A create-only configuration import fixes new environments only",
+      "problem": "Editing the tracked configuration did not change already provisioned environments.",
+      "cause": "The loader skipped existing state instead of reconciling or replacing it.",
+      "prevention": "Pair declarative changes with an explicit migration path and verify loader flags.",
+      "tags": ["configuration", "migration", "provisioning"]
+    },
+    {
+      "id": "parallel-mutators-share-tree",
+      "title": "Concurrent mutation checks need isolated working trees",
+      "problem": "Two reviewers produced inconsistent mutation-test results on the same checkout.",
+      "cause": "Each process edited and restored the same tracked files while the other process was testing.",
+      "prevention": "Give state-mutating workers separate worktrees or run them sequentially.",
+      "tags": ["concurrency", "agents", "mutation-testing"]
+    }
+  ],
+  "cases": [
+    {
+      "id": "literal-upstream-parser",
+      "query": "upstream 404 JSON parser failure",
+      "relevant": ["upstream-status-before-parse"],
+      "kind": "lexical-control"
+    },
+    {
+      "id": "paraphrase-upstream-parser",
+      "query": "the third-party route vanished but our adapter accuses decoding",
+      "relevant": ["upstream-status-before-parse"],
+      "kind": "hard-paraphrase"
+    },
+    {
+      "id": "paraphrase-desired-state",
+      "query": "shipping one build erased a prior build",
+      "relevant": ["desired-state-replaces-list"],
+      "kind": "hard-paraphrase"
+    },
+    {
+      "id": "paraphrase-rendered-outcome",
+      "query": "green automation while customers see an empty screen",
+      "relevant": ["rendered-outcome-not-class"],
+      "kind": "hard-paraphrase"
+    },
+    {
+      "id": "paraphrase-negotiation",
+      "query": "francophone visitor gets English only in a shell probe",
+      "relevant": ["content-negotiation-needs-header"],
+      "kind": "hard-paraphrase"
+    },
+    {
+      "id": "paraphrase-create-only",
+      "query": "checked-in identity settings affect clean installs but not long-running stacks",
+      "relevant": ["create-only-config-import"],
+      "kind": "hard-paraphrase"
+    },
+    {
+      "id": "paraphrase-parallel-mutators",
+      "query": "workers contaminate each other's trials in a shared checkout",
+      "relevant": ["parallel-mutators-share-tree"],
+      "kind": "hard-paraphrase"
+    },
+    {
+      "id": "unrelated-control",
+      "query": "TLS certificate hostname mismatch during websocket connection",
+      "relevant": [],
+      "kind": "negative-control"
+    }
+  ]
+}

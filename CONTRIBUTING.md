@@ -35,4 +35,9 @@ it, and how you verified it. Provider contributions should document their data
 flow, failure behavior, timeout expectations, and whether they access a network.
 New retrieval behavior should include ranking cases or regression tests.
 
+Semantic retrieval work should begin with the evaluation and interface sequence
+in the [retrieval proposal](docs/retrieval-roadmap.md). The project is ready for
+design and evaluation contributions, but not an unreviewed vector-database or
+mandatory embedding dependency.
+
 Keep commits small enough to review and avoid unrelated formatting changes.

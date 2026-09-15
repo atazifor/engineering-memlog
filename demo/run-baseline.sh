@@ -5,9 +5,9 @@ DEMO_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/engineering-memlog-baseline.XXXXXX")
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-cp "$DEMO_DIR/fixture/database.py" "$WORK_DIR/database.py"
-cp "$DEMO_DIR/fixture/database-fixed.py" "$WORK_DIR/database-fixed.py"
-cp "$DEMO_DIR/fixture/test_database.py" "$WORK_DIR/test_database.py"
+cp "$DEMO_DIR/fixture/integration.py" "$WORK_DIR/integration.py"
+cp "$DEMO_DIR/fixture/integration-fixed.py" "$WORK_DIR/integration-fixed.py"
+cp "$DEMO_DIR/fixture/test_integration.py" "$WORK_DIR/test_integration.py"
 
 printf '=== 1 / 4  Reproduce without memory ===\n'
 printf '$ python3 -m unittest -q\n'
@@ -19,15 +19,20 @@ else
 fi
 
 printf '\n=== 2 / 4  Re-derive the cause from current code ===\n'
-printf '$ grep -n "PRAGMA\|connect" database.py\n'
-grep -n "PRAGMA\|connect" "$WORK_DIR/database.py"
-printf '$ python3 -c "from database import connect; ... PRAGMA foreign_keys"\n'
-(cd "$WORK_DIR" && python3 -c 'from database import connect; db = connect("probe.db"); print("PRAGMA foreign_keys =", db.execute("PRAGMA foreign_keys").fetchone()[0]); db.close()')
-printf 'OBSERVATION: migration enables enforcement, but runtime connections do not.\n'
+printf '$ grep -n "json.loads\|status" integration.py\n'
+grep -n "json.loads\|status" "$WORK_DIR/integration.py"
+printf '$ python3 -c "decode_download(404, plain_text_body)"\n'
+if probe_output=$(cd "$WORK_DIR" && python3 -c 'from integration import decode_download; decode_download(404, "endpoint is disabled")' 2>&1); then
+  printf 'Expected the integration probe to fail.\n' >&2
+  exit 1
+else
+  printf '%s\n' "$probe_output" | grep -m 1 "IntegrationError"
+fi
+printf 'OBSERVATION: our parser names itself instead of the upstream response.\n'
 
 printf '\n=== 3 / 4  Apply the locally derived fix ===\n'
-printf '$ cp database-fixed.py database.py\n'
-cp "$WORK_DIR/database-fixed.py" "$WORK_DIR/database.py"
+printf '$ cp integration-fixed.py integration.py\n'
+cp "$WORK_DIR/integration-fixed.py" "$WORK_DIR/integration.py"
 
 printf '\n=== 4 / 4  Verify ===\n'
 printf '$ python3 -m unittest -q\n'

@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Measure the lexical baseline for the semantic-retrieval evaluation set."""
+
+import argparse
+import json
+from pathlib import Path
+import sys
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from memlog_retrieval import rank_entries  # noqa: E402
+
+
+def evaluate(dataset):
+    entries = dataset["entries"]
+    results = []
+    buckets = {}
+    for case in dataset["cases"]:
+        ranked = [entry["id"] for _, entry in rank_entries(entries, [case["query"]])]
+        relevant = set(case["relevant"])
+        result = {
+            "id": case["id"],
+            "kind": case["kind"],
+            "top_ids": ranked[:5],
+            "hit_at_1": bool(relevant.intersection(ranked[:1])) if relevant else None,
+            "hit_at_3": bool(relevant.intersection(ranked[:3])) if relevant else None,
+            "hit_at_5": bool(relevant.intersection(ranked[:5])) if relevant else None,
+            "negative_result_count": len(ranked) if not relevant else None,
+        }
+        results.append(result)
+        if relevant:
+            bucket = buckets.setdefault(case["kind"], {"cases": 0, "hits_at_1": 0, "hits_at_3": 0, "hits_at_5": 0})
+            bucket["cases"] += 1
+            for key in ("hits_at_1", "hits_at_3", "hits_at_5"):
+                bucket[key] += int(result[key.replace("hits", "hit")])
+    return {"dataset_version": dataset["version"], "lexical_by_kind": buckets, "cases": results}
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    dataset = json.loads((ROOT / "evals" / "semantic-retrieval-cases.json").read_text(encoding="utf-8"))
+    actual = evaluate(dataset)
+    if args.check:
+        expected = json.loads((ROOT / "evals" / "semantic-retrieval-baseline.json").read_text(encoding="utf-8"))
+        if actual != expected:
+            print("lexical retrieval baseline changed", file=sys.stderr)
+            return 1
+    print(json.dumps(actual, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -12,7 +12,7 @@ searches it when a concrete failure appears.
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
 ![dependencies: stdlib only](https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen)
 
-![A terminal demo that reproduces a SQLite cascade failure, recalls a matching connection-scoping lesson, verifies the fix, and saves the result](assets/memlog-demo.gif)
+![A terminal demo that reproduces an integration error masking an upstream 404, recalls a matching response-handling lesson, verifies the fix, and saves the result](assets/memlog-demo.gif)
 
 Without Memlog:
 
@@ -182,6 +182,7 @@ For the full disclosure and threat boundaries, see [SECURITY.md](SECURITY.md).
 - [Provider protocol and adapter](PROVIDERS.md)
 - [Entry schema](SCHEMA.md)
 - [Comparison with adjacent tools](docs/comparison.md)
+- [Semantic and hybrid retrieval proposal](docs/retrieval-roadmap.md)
 - [Discoverability audit](docs/discoverability-audit.md)
 - [Contributing guide](CONTRIBUTING.md)
 

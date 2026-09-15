@@ -6,9 +6,9 @@ REPO_DIR=$(CDPATH= cd -- "$DEMO_DIR/.." && pwd)
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/engineering-memlog-demo.XXXXXX")
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-cp "$DEMO_DIR/fixture/database.py" "$WORK_DIR/database.py"
-cp "$DEMO_DIR/fixture/database-fixed.py" "$WORK_DIR/database-fixed.py"
-cp "$DEMO_DIR/fixture/test_database.py" "$WORK_DIR/test_database.py"
+cp "$DEMO_DIR/fixture/integration.py" "$WORK_DIR/integration.py"
+cp "$DEMO_DIR/fixture/integration-fixed.py" "$WORK_DIR/integration-fixed.py"
+cp "$DEMO_DIR/fixture/test_integration.py" "$WORK_DIR/test_integration.py"
 cp "$DEMO_DIR/entries.jsonl" "$WORK_DIR/entries.jsonl"
 
 frame() {
@@ -22,40 +22,40 @@ if test_output=$(cd "$WORK_DIR" && python3 -m unittest -q 2>&1); then
   exit 1
 else
   printf '%s\n' "$test_output" | grep -m 1 "AssertionError"
-  printf 'FAIL: deleting a project leaves an orphan task\n'
+  printf 'FAIL: a local parser error hides the upstream HTTP 404\n'
 fi
 
 frame "2 / 8  Search memory using evidence from the failure"
-printf '$ memlog search "sqlite delete cascade orphan foreign_keys"\n'
+printf '$ memlog search "integration JSON parse error upstream response"\n'
 python3 "$REPO_DIR/memlog" --file "$WORK_DIR/entries.jsonl" \
-  search "sqlite delete cascade orphan foreign_keys" --limit 1
+  search "integration JSON parse error upstream response" --limit 1
 
 frame "3 / 8  Treat recall as a hypothesis"
-printf '[skill] Candidate says foreign-key enforcement is connection-local.\n'
+printf '[skill] Candidate says parsing may be erasing the upstream failure.\n'
 printf '[skill] Inspect current code; do not apply memory blindly.\n'
-printf '$ python3 -c "from database import connect; ... PRAGMA foreign_keys"\n'
-(cd "$WORK_DIR" && python3 -c 'from database import connect; db = connect("probe.db"); print("PRAGMA foreign_keys =", db.execute("PRAGMA foreign_keys").fetchone()[0]); db.close()')
-printf 'MATCH: an ordinary application connection has enforcement disabled\n'
+printf '$ grep -n "json.loads\|status" integration.py\n'
+grep -n "json.loads\|status" "$WORK_DIR/integration.py"
+printf 'MATCH: the body is parsed before status is ever checked\n'
 
 frame "4 / 8  Apply the smallest causal fix"
-printf '$ cp database-fixed.py database.py\n'
-cp "$WORK_DIR/database-fixed.py" "$WORK_DIR/database.py"
-printf 'Moved PRAGMA foreign_keys = ON into the shared connection factory.\n'
+printf '$ cp integration-fixed.py integration.py\n'
+cp "$WORK_DIR/integration-fixed.py" "$WORK_DIR/integration.py"
+printf 'Preserved non-2xx status and body before parsing success JSON.\n'
 
 frame "5 / 8  Verify the original failure"
 printf '$ python3 -m unittest -q\n'
 (cd "$WORK_DIR" && python3 -m unittest -q 2>&1)
-printf 'PASS: deleting a project now cascades to its tasks\n'
+printf 'PASS: the error now identifies the upstream 404 and explanation\n'
 
 frame "6 / 8  Save only after verification"
 printf '$ memlog add --json <verified-lesson>\n'
 python3 "$REPO_DIR/memlog" --file "$WORK_DIR/entries.jsonl" add --json \
-  '{"title":"Verified SQLite foreign-key enforcement on runtime connections","problem":"Deleting a project left an orphan task even though the schema declared ON DELETE CASCADE.","cause":"Only the migration connection enabled PRAGMA foreign_keys; separately opened runtime connections defaulted to disabled enforcement.","fix":"Enabled PRAGMA foreign_keys in the shared connection factory and reran the cascade regression test.","prevention":"Initialize foreign-key enforcement on every SQLite connection and test cascade behavior through the runtime connection path.","artifact":"database.py connection factory","repo":"sanitized-demo","service":"task-api","environment":"local","tags":["python","sqlite","foreign-keys","cascade","regression-test"],"confidence":0.5,"status":"draft","source":"demo"}'
+  '{"title":"Verified upstream status is preserved before response parsing","problem":"A plain-text HTTP 404 was misreported as a local JSON parsing failure.","cause":"The integration decoded every body before checking response status, so deserialization masked the upstream failure.","fix":"Handled non-2xx status and sanitized body before parsing successful JSON and reran the regression test.","prevention":"Test every integration with a non-JSON error response and preserve upstream status before deserialization.","artifact":"integration response decoder","repo":"sanitized-demo","service":"billing-integration","environment":"local","tags":["python","http","integration","error-handling","regression-test"],"confidence":0.5,"status":"draft","source":"demo"}'
 
 frame "7 / 8  A later session can retrieve the verified lesson"
-printf '$ memlog search "verified sqlite foreign key runtime connection" --limit 1\n'
+printf '$ memlog search "verified upstream status response parsing" --limit 1\n'
 python3 "$REPO_DIR/memlog" --file "$WORK_DIR/entries.jsonl" \
-  search "verified sqlite foreign key runtime connection" --limit 1
+  search "verified upstream status response parsing" --limit 1
 
 frame "8 / 8  A miss continues the investigation"
 printf '$ memlog search "postgres deadlock transaction retry"\n'
