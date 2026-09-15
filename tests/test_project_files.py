@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+import subprocess
+import sys
 import unittest
 
 
@@ -34,6 +36,41 @@ class ProjectFileTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("active Claude conversation context", readme)
         self.assertIn("custom provider controls its own storage", readme)
+
+    def test_release_version_has_one_manifest_source_and_matches_cli(self) -> None:
+        plugin = json.loads(
+            (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        marketplace = json.loads(
+            (ROOT / ".claude-plugin" / "marketplace.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        version = plugin["version"]
+
+        self.assertRegex(version, r"^\d+\.\d+\.\d+$")
+        self.assertNotIn("version", marketplace["plugins"][0])
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "memlog"), "--version"],
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), f"memlog {version}")
+
+    def test_release_files_cover_the_manifest_version(self) -> None:
+        plugin = json.loads(
+            (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        version = plugin["version"]
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        notes = ROOT / "releases" / f"v{version}.md"
+
+        self.assertIn(f"## [{version}]", changelog)
+        self.assertTrue(notes.is_file())
+        self.assertIn(f"v{version}", notes.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

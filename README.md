@@ -7,6 +7,9 @@
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
 ![dependencies: stdlib only](https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen)
 
+Current release: **v0.2.0** · [changelog](CHANGELOG.md) ·
+[release notes](releases/v0.2.0.md)
+
 > **The problem:** an AI agent figures something out the hard way, the session ends, and that knowledge is gone. A week later a different session re-derives the same fix from scratch.
 >
 > **The fix:** before finishing a task, the agent appends a structured lesson — *problem, cause, fix, prevention* — to one shared JSONL log. Next time the symptom shows up, it searches the log and skips the re-derivation.

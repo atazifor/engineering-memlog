@@ -1,5 +1,6 @@
 {
   "name": "engineering-memlog",
+  "version": "0.2.0",
   "description": "Debug with verified engineering memory using a systematic skill, bounded automatic recall, pluggable storage, and an integrity-checked bundled CLI.",
   "author": {
     "name": "atazifor"
