@@ -38,10 +38,10 @@ Do not propose a fix yet.
 ## 2. Run the exact search
 
 Once there is a concrete signal, run one exact search before broad research or a
-fix attempt. The current file backend performs literal substring matching. Use one
-distinctive fragment that is present verbatim in the failure or likely entry—such
-as an error code, identifier, component, or short symptom—not a sentence assembled
-from separate keywords:
+fix attempt. The file backend scans the JSONL log and ranks token coverage across
+fields, with an extra boost for an exact phrase within one field. Use a concise,
+evidence-bearing query such as an error code, identifier, component plus symptom,
+or short error fragment:
 
 ```bash
 memlog search "<exact error, identifier, or symptom>" --json --limit 10

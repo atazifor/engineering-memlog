@@ -1,9 +1,42 @@
 import json
+import shutil
 
-from tests.support import IsolatedTestCase, make_entry, write_jsonl
+from tests.support import MEMLOG, REPO_ROOT, IsolatedTestCase, make_entry, write_jsonl
 
 
 class MemlogCliTests(IsolatedTestCase):
+    def test_cli_can_import_retrieval_code_through_an_installed_symlink(self) -> None:
+        installed = self.temp / "bin" / "memlog"
+        installed.symlink_to(MEMLOG)
+        result = self.run_program(
+            installed,
+            "--file",
+            str(self.log),
+            "search",
+            "postgresql",
+            "--json",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_cli_and_retrieval_module_can_be_installed_as_copies(self) -> None:
+        bin_dir = self.temp / "copied-bin"
+        bin_dir.mkdir()
+        installed = bin_dir / "memlog"
+        shutil.copy2(MEMLOG, installed)
+        shutil.copy2(REPO_ROOT / "memlog_retrieval.py", bin_dir / "memlog_retrieval.py")
+
+        result = self.run_program(
+            installed,
+            "--file",
+            str(self.log),
+            "search",
+            "postgresql",
+            "--json",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_add_generates_bookkeeping_and_preserves_unicode(self) -> None:
         payload = make_entry(title="Unicode failure — café 🧠")
         payload.pop("id")
@@ -69,6 +102,75 @@ class MemlogCliTests(IsolatedTestCase):
         self.assertEqual(human.returncode, 0, human.stderr)
         self.assertIn("PostgreSQL connection timeout", human.stdout)
         self.assertEqual(json.loads(machine.stdout)["id"], "match")
+
+    def test_search_matches_noncontiguous_terms_and_ranks_by_relevance(self) -> None:
+        write_jsonl(
+            self.log,
+            [
+                make_entry(
+                    id="partial",
+                    timestamp="2026-09-15T00:00:00Z",
+                    title="Slugify helper cleanup",
+                    problem="A formatting helper needs maintenance.",
+                    tags=["python"],
+                    confidence=1.0,
+                ),
+                make_entry(
+                    id="relevant",
+                    timestamp="2025-01-01T00:00:00Z",
+                    title="Slugifier leaves underscores in cache keys",
+                    problem="The slugify test reports a failure for underscore input.",
+                    cause="Underscore separators are not normalized.",
+                    tags=["slugify", "underscore"],
+                    confidence=0.25,
+                ),
+            ],
+        )
+
+        result = self.run_memlog(
+            "search",
+            "slugify underscore failure",
+            "--json",
+            "--limit",
+            "2",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual([row["id"] for row in rows], ["relevant"])
+
+    def test_search_boosts_an_exact_phrase_over_scattered_terms(self) -> None:
+        write_jsonl(
+            self.log,
+            [
+                make_entry(
+                    id="scattered",
+                    timestamp="2026-09-15T00:00:00Z",
+                    title="Frozen install failure",
+                    problem="The dependency step stopped.",
+                    cause="The lockfile changed.",
+                    confidence=1.0,
+                ),
+                make_entry(
+                    id="phrase",
+                    timestamp="2025-01-01T00:00:00Z",
+                    title="Frozen lockfile install failure",
+                    confidence=0.25,
+                ),
+            ],
+        )
+
+        result = self.run_memlog(
+            "search",
+            "frozen lockfile install failure",
+            "--json",
+            "--limit",
+            "2",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual([row["id"] for row in rows], ["phrase", "scattered"])
 
     def test_search_no_hit_and_missing_or_empty_file_are_successful(self) -> None:
         missing = self.run_memlog("search", "redis")

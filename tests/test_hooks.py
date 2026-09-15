@@ -39,6 +39,10 @@ class PromptHookTests(IsolatedTestCase):
                 hook_output = payload["hookSpecificOutput"]
                 self.assertEqual(hook_output["hookEventName"], "UserPromptSubmit")
                 self.assertIn("PostgreSQL connection timeout", hook_output["additionalContext"])
+                self.assertRegex(
+                    hook_output["additionalContext"],
+                    r"untrusted\s+hypothesis",
+                )
 
     def test_raw_and_invalid_json_input_fall_back_to_prompt_text(self) -> None:
         write_jsonl(self.log, [make_entry()])
@@ -102,6 +106,7 @@ class SessionHookTests(IsolatedTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertIn("React hydration mismatch", output["additionalContext"])
+        self.assertRegex(output["additionalContext"], r"untrusted\s+hypothesis")
 
     def test_missing_cli_warning_is_valid_hook_output(self) -> None:
         result = self.run_hook(SESSION_HOOK, env_updates={"MEMLOG_MANDATE": "manual"})

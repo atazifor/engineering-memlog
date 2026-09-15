@@ -11,7 +11,7 @@
 >
 > **The fix:** before finishing a task, the agent appends a structured lesson — *problem, cause, fix, prevention* — to one shared JSONL log. Next time the symptom shows up, it searches the log and skips the re-derivation.
 
-That's the whole thing: **one JSONL file, a ~200-line stdlib script, and a focused debugging workflow for your agent.** No database, no embeddings, no network calls. On Claude Code, a plugin combines that workflow with automatic retrieval hints so relevant prior lessons surface while the failure is being investigated.
+That's the whole thing: **one JSONL file, a small stdlib CLI, and a focused debugging workflow for your agent.** No database, no embeddings, no network calls. On Claude Code, a plugin combines that workflow with automatic retrieval hints so relevant prior lessons surface while the failure is being investigated.
 
 **Keywords:** AI agent memory · persistent memory for LLM coding assistants · Claude Code plugin · Cursor / AGENTS.md · cross-project knowledge base · stop repeating bugs.
 
@@ -23,9 +23,9 @@ The division is the whole idea.
 
 **2. An agent policy.** The [mandate](MANDATE.md) defines when to preserve a verified lesson. The Claude Code plugin also ships `debug-with-memlog`, a model-invocable skill that searches after a concrete failure is captured, validates any hit as a hypothesis, continues local diagnosis on a miss, and writes back only after verification.
 
-**3. A CLI.** `memlog add`, `search`, `list`. ~200 lines of Python, standard library only.
+**3. A CLI.** `memlog add`, `search`, `list`. Python standard library only.
 
-The script is deliberately dumb: it appends a JSON line and greps the file. Zero judgment. All the intelligence — what's worth logging, what never to log, when to search — lives in the mandate. That's why the script is small, and why it's replaceable: the file format is the contract, the Python is one implementation.
+The storage layer is deliberately dumb: append one JSON line and scan the file on reads. Search uses deterministic lexical ranking, while judgment—what is worth logging, when to search, and whether a result applies—stays with the agent workflow. The file format is the contract; the Python is one replaceable implementation.
 
 ## Install
 
@@ -42,8 +42,8 @@ memlog --help
 `git pull` updates it in place — no stale copy. Override the location with
 `make install BINDIR=/usr/local/bin`. Run `make doctor` any time to check the
 install, PATH, and python3; `make uninstall` removes the symlink. (Prefer the
-manual way? `cp memlog ~/.local/bin/memlog && chmod +x ~/.local/bin/memlog`
-still works — just re-copy after each pull.)
+manual way? Copy both `memlog` and `memlog_retrieval.py` into the same bin
+directory, then make `memlog` executable. Re-copy both after each pull.)
 
 The log lives at `~/.engineering-memlog/entries.jsonl` by default. Override with `--file` or `ENGINEERING_MEMLOG_FILE` — point it inside a repo if you want a team to share one.
 
@@ -53,8 +53,8 @@ The log lives at `~/.engineering-memlog/entries.jsonl` by default. Override with
 # append a lesson
 memlog add --json '{ "title": "...", "problem": "...", ... }'
 
-# search before starting work
-memlog search "frozen-lockfile"
+# search after capturing a concrete failure
+memlog search "frozen lockfile install failure"
 
 # browse, newest first
 memlog list --reverse
@@ -62,17 +62,25 @@ memlog list --reverse
 
 In practice you rarely run `add` by hand. Your agent does, because the mandate tells it to.
 
+Search is case-insensitive and field-aware. It ranks query-token coverage across
+the title, tags, problem, cause, prevention, artifact, fix, repo, service, and
+environment; exact phrases receive a boost, while confidence and recency break
+close ties. Multi-term queries must match more than one term, which keeps a generic
+word such as “failure” from flooding the results. Retrieval still performs a
+linear scan of the JSONL file—simple and appropriate for a personal log, with no
+index or cache to maintain.
+
 ## How your agent uses the log
 
 The agent uses the same CLI you do — no embeddings, no MCP server required. Two paths, depending on whether the plugin is installed.
 
-**With the [mandate](MANDATE.md) only (any agent, any IDE):** after a verified, meaningful resolution, the agent runs `memlog add` to append a structured entry. Once it has captured a concrete failure, it searches for a distinctive literal symptom and treats each result as an untrusted hypothesis. A miss leads back to local evidence gathering, then primary documentation or the web when the uncertainty is external—not to more unbounded Memlog queries.
+**With the [mandate](MANDATE.md) only (any agent, any IDE):** after a verified, meaningful resolution, the agent runs `memlog add` to append a structured entry. Once it has captured a concrete failure, it searches with a concise evidence-bearing query and treats each ranked result as an untrusted hypothesis. A miss leads back to local evidence gathering, then primary documentation or the web when the uncertainty is external—not to more unbounded Memlog queries.
 
 **With the plugin installed (Claude Code only):** the model-invocable debugging skill owns the read-investigate-verify loop. SessionStart and UserPromptSubmit hooks supply bounded retrieval hints, including failures discovered after the session begins. **The SessionStart hook also auto-loads the [mandate](MANDATE.md)**, so plugin users do not need to paste anything into a project rules file. The auto-load is idempotent: if you *do* paste the mandate into a `CLAUDE.md` (it carries a version marker), the hook detects it and stays quiet; set `MEMLOG_MANDATE=manual` to turn auto-load off entirely.
 
 ## Closing the read-side loop — Claude Code plugin
 
-Prose mandates work for the write side but agents reliably **drift past the "search before you work" half**. The result is a write-mostly system: lessons land but rarely surface in time to prevent a re-derivation.
+Prose mandates work for the write side but agents reliably **drift past retrieval during debugging**. The result is a write-mostly system: lessons land but rarely surface in time to prevent a re-derivation.
 
 This repo ships a Claude Code plugin that fixes that by making the read side automatic, not voluntary:
 

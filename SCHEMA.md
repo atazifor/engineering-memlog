@@ -3,7 +3,7 @@
 The log is one append-only file — `entries.jsonl` — with one JSON object
 per line ([JSONL](https://jsonlines.org/)). **The file format is the
 contract.** The `memlog` script is one reference implementation; anything
-that can append a valid line and grep the file is a valid client.
+that can append and read valid lines is a valid client.
 
 ## Fields
 

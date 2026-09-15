@@ -95,6 +95,38 @@ class RetrievalScriptTests(IsolatedTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["title"], "PostgreSQL timeout — café")
 
+    def test_prompt_search_uses_query_coverage_for_ranking(self) -> None:
+        write_jsonl(
+            self.log,
+            [
+                make_entry(
+                    id="partial",
+                    title="Unexpected helper failure",
+                    problem="A generic helper failed.",
+                    tags=["python"],
+                ),
+                make_entry(
+                    id="relevant",
+                    title="Slugifier leaves underscores",
+                    problem="The slugify test has an underscore failure.",
+                    tags=["slugify", "underscore"],
+                ),
+            ],
+        )
+
+        result = self.run_program(
+            SEARCH_PROMPT,
+            "--file",
+            str(self.log),
+            "--limit",
+            "2",
+            input_text="Unexpected slugify underscore failure",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual([row["id"] for row in rows], ["relevant", "partial"])
+
     def test_non_positive_script_limits_are_rejected(self) -> None:
         for program in (SHORTLIST, SEARCH_PROMPT):
             with self.subTest(program=program.name):

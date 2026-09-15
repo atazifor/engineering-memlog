@@ -3,8 +3,9 @@
 memlog — durable engineering memory for AI coding agents.
 
 A deliberately dumb tool: it appends a structured JSON entry to a single
-append-only log, and greps it back. All the judgment — what is worth
-logging, and when to search — lives in your agent's rules file, not here.
+append-only log, and ranks lexical matches when reading it back. All the
+judgment — what is worth logging, and when to search — lives in your agent's
+rules file, not here.
 See README.md.
 
 Default data file: ~/.engineering-memlog/entries.jsonl
@@ -20,6 +21,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
+
+from memlog_retrieval import rank_entries
 
 DEFAULT_DATA_FILE = Path(
     os.environ.get(
@@ -137,36 +140,10 @@ def cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
-def entry_matches(entry: Dict[str, Any], needle: str) -> bool:
-    haystack_parts: List[str] = []
-    for key in [
-        "title",
-        "problem",
-        "fix",
-        "cause",
-        "prevention",
-        "artifact",
-        "repo",
-        "service",
-        "environment",
-        "status",
-        "source",
-    ]:
-        value = entry.get(key)
-        if isinstance(value, str):
-            haystack_parts.append(value)
-    haystack_parts.extend(entry.get("tags", []))
-    haystack = "\n".join(haystack_parts).lower()
-    return needle.lower() in haystack
-
-
 def cmd_search(args: argparse.Namespace) -> int:
     data_file = Path(args.file)
-    matches = []
-    for _, entry in iter_entries(data_file) or []:
-        if entry_matches(entry, args.query):
-            matches.append(entry)
-    matches = matches[: args.limit]
+    entries = (entry for _, entry in iter_entries(data_file) or [])
+    matches = [entry for _, entry in rank_entries(entries, [args.query])[: args.limit]]
 
     if args.json:
         print_jsonl(matches)
@@ -226,7 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--json", required=True, help="JSON object string for the memory entry")
     add_parser.set_defaults(func=cmd_add)
 
-    search_parser = subparsers.add_parser("search", help="Keyword search entries")
+    search_parser = subparsers.add_parser("search", help="Ranked keyword search of entries")
     search_parser.add_argument("query", help="Search text")
     search_parser.add_argument("--limit", type=positive_int, default=10)
     search_parser.add_argument(

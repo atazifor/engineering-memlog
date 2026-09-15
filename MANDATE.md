@@ -44,11 +44,10 @@ Without the skill, search the log when you:
 - have captured a concrete error, failure, or unexpected behavior, or
 - are about to propose a fix for a non-obvious bug.
 
-Search for the concrete signal in front of you. The current file backend uses
-literal substring matching, so begin with one distinctive error identifier,
-component name, or symptom fragment rather than a sentence assembled from
-several separate terms. Pass `--json` to read results back as JSONL, one entry
-per line:
+Search for the concrete signal in front of you. The file backend scans the JSONL
+log and ranks token coverage across fields, with an exact-phrase boost. Begin with
+a concise error identifier, component plus symptom, or short error fragment. Pass
+`--json` to read results back as JSONL, one entry per line:
 
 ```bash
 memlog search "frozen-lockfile" --json

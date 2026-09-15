@@ -93,10 +93,10 @@ class DebugSkillTests(unittest.TestCase):
         self.assertIn("only record a cause, fix, and prevention rule after", instructions)
         self.assertNotIn("prefer logging a rough draft", instructions)
 
-    def test_skill_accounts_for_current_literal_substring_search(self) -> None:
+    def test_skill_describes_ranked_file_search(self) -> None:
         text = SKILL.read_text(encoding="utf-8").lower()
-        self.assertIn("literal substring matching", text)
-        self.assertIn("distinctive fragment", text)
+        self.assertIn("ranks token coverage", text)
+        self.assertIn("exact phrase", text)
 
     def test_manual_eval_matrix_covers_required_outcomes(self) -> None:
         text = EVALS.read_text(encoding="utf-8").lower()
