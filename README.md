@@ -20,24 +20,26 @@ the root cause and fix have been verified.
 ## When Memlog earns its keep
 
 Memlog is useful when the diagnosis was expensive but the lesson is portable.
-The included [sanitized examples](examples/entries.jsonl) cover situations such
-as:
+These patterns recur across languages, frameworks, and repositories:
 
-- **A surface error points at the wrong layer.** A JSON parser exception hides
-  the upstream HTTP 404 that actually caused the failure.
-- **Local and production systems accept different data.** SQLite-backed tests
-  pass while PostgreSQL rejects an empty string written to a `jsonb` column.
-- **A framework failure depends on the runtime version.** Tailwind's native
-  binding is present in the lockfile but fails under Node 18 in CI.
-- **Writes succeed while the UI keeps showing defaults.** The database row is
-  correct, but a Go response struct without JSON tags emits PascalCase fields
-  that its snake_case client does not recognize.
-- **Generated state survives after the source is gone.** A deleted Next.js route
-  leaves a stale generated validator that produces a phantom type-check error.
-- **The endpoint works in `curl` but the browser never sends the request.** An
-  `OPTIONS` preflight returns 200 but omits `PATCH` from
-  `Access-Control-Allow-Methods`, so the browser reports only a generic network
-  error.
+- **The visible error points at the wrong layer.** The failure is reported where
+  it surfaces, while the real cause is earlier in the request, data, or control
+  flow.
+- **It works locally but fails elsewhere.** CI, staging, or production differs
+  in runtime, configuration, dependencies, permissions, or data behavior.
+- **Each component looks correct in isolation.** The defect lives in the
+  contract between a client, service, database, queue, or external system.
+- **Generated or cached state outlives the source that created it.** The code is
+  correct, but stale artifacts keep producing a failure that appears current.
+- **A framework default silently overrides the intended behavior.** An omitted,
+  zero, false, empty, or missing value is interpreted differently from what the
+  application expects.
+- **The application never receives the operation you are debugging.** A browser,
+  proxy, gateway, policy, or transport blocks or rewrites it before the relevant
+  code runs.
+
+The [sanitized example lessons](examples/entries.jsonl) show concrete instances
+of each pattern without making the README specific to one stack.
 
 Do not save typos, syntax mistakes, routine command failures, transient errors,
 retries, search misses, speculative diagnoses, failed hypotheses, or unverified

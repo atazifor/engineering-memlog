@@ -113,6 +113,17 @@ class DocumentationAssetTests(unittest.TestCase):
         self.assertNotIn("compatible coding agents", readme[:1000].lower())
         self.assertIn("non-obvious, reusable lessons", readme[:1000])
         self.assertEqual(use_cases.count("- **"), 6)
+        for stack_specific_term in (
+            "tailwind",
+            "node 18",
+            "postgresql",
+            "sqlite",
+            "jsonb",
+            "next.js",
+            "go response",
+        ):
+            with self.subTest(stack_specific_term=stack_specific_term):
+                self.assertNotIn(stack_specific_term, use_cases.lower())
 
 
 class ReproducibleDemoTests(unittest.TestCase):
