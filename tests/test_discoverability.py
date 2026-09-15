@@ -85,13 +85,30 @@ class DocumentationAssetTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertLess(
             readme.index("## Install"),
-            readme.index("## CLI usage"),
+            readme.index("## CLI"),
         )
         self.assertIn("After a miss\nor an unavailable backend", readme)
         self.assertIn("assets/memlog-demo.gif", readme)
         self.assertIn("docs/comparison.md", readme)
-        self.assertIn("not a\nhistory of every error", readme)
+        self.assertIn("not a history of every error", readme)
         self.assertIn("does not perform\nembedding or semantic search", readme)
+
+    def test_readme_leads_with_the_product_boundary_and_six_grounded_uses(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        use_cases = readme[
+            readme.index("## When Memlog earns its keep") : readme.index(
+                "## Agent support"
+            )
+        ]
+
+        self.assertLess(readme.index("### A concrete example"), readme.index("assets/memlog-demo.gif"))
+        self.assertLess(readme.index("## How it works"), readme.index("## Install"))
+        self.assertLess(
+            readme.index("## When Memlog earns its keep"), readme.index("## Install")
+        )
+        self.assertNotIn("compatible coding agents", readme[:1000].lower())
+        self.assertIn("non-obvious, reusable lessons", readme[:1000])
+        self.assertEqual(use_cases.count("- **"), 6)
 
 
 class ReproducibleDemoTests(unittest.TestCase):

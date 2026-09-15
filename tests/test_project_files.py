@@ -112,7 +112,7 @@ class ProjectFileTests(unittest.TestCase):
 
     def test_plugin_install_docs_use_the_bundled_cli(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("plugin's `bin/` directory", readme)
+        self.assertRegex(readme, r"plugin's `bin/`\s+directory")
         self.assertIn("without a separate clone or `make install`", readme)
         self.assertNotIn("only adds the read-side hooks", readme)
 
