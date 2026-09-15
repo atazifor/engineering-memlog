@@ -85,19 +85,19 @@ class DocumentationAssetTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertLess(
             readme.index("## Install"),
-            readme.index("## CLI"),
+            readme.index("## Manual CLI"),
         )
-        self.assertIn("After a miss\nor an unavailable backend", readme)
+        self.assertRegex(readme, r"A miss or unavailable backend is a normal outcome")
         self.assertIn("assets/memlog-demo.gif", readme)
         self.assertIn("docs/comparison.md", readme)
         self.assertIn("Memlog is not an error log", readme)
-        self.assertIn("does not perform\nembedding or semantic search", readme)
+        self.assertRegex(readme, r"does not perform\s+embedding or semantic search")
 
     def test_readme_leads_with_the_product_boundary_and_six_recognizable_pains(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         use_cases = readme[
             readme.index("## You probably need Memlog if") : readme.index(
-                "## Agent support"
+                "## A concrete example"
             )
         ]
 

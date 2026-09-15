@@ -46,11 +46,16 @@ transient failures, speculative diagnoses, or a record of every fix. The
 
 ## A concrete example
 
-A billing integration reports a JSON parsing error. The useful memory is not the
-exception itself; it is the earlier lesson that says to check the upstream HTTP
-status before parsing the response body. The agent verifies that the same
-ordering mistake exists, exposes the real HTTP 404, fixes it, tests it, and
-preserves the prevention rule.
+An agent previously traced a misleading JSON parsing error to an upstream HTTP
+failure and preserved the useful rule: check the response status before parsing
+its body. Later, another integration presents the same pattern. Instead of
+starting from zero, the next agent retrieves that lesson, checks whether the
+current code makes the same mistake, and confirms the real HTTP 404 before
+changing anything.
+
+The value is not an automatic answer. It is beginning the investigation with a
+relevant, previously verified hypothesis instead of rediscovering it from
+scratch.
 
 ![A terminal demo that reproduces an integration error masking an upstream 404, recalls a matching response-handling lesson, verifies the fix, and saves the result](assets/memlog-demo.gif)
 
@@ -65,40 +70,22 @@ it is not a model-performance benchmark.
 reproduce → recall → test the match → diagnose and fix → verify → preserve if reusable
 ```
 
-1. Capture and reproduce a concrete failure before proposing a fix.
-2. Search once with the strongest error, identifier, or symptom. If no
-   applicable lesson survives verification, run at most two broader searches
-   based on newly gathered local evidence.
-3. Treat every recalled lesson as an untrusted hypothesis. Compare its cause,
-   environment, versions, and assumptions with the current problem.
-4. Test one hypothesis at a time, make the smallest causal fix, and verify the
-   original failure plus relevant regression tests.
-5. Save a lesson only when the resolution is verified, non-obvious, reusable,
-   and likely to shorten a future investigation.
+1. **Reproduce.** The agent captures a concrete failure before proposing a fix.
+2. **Recall.** Memlog searches for prior lessons that may explain the evidence.
+3. **Verify or reject.** Every match is an untrusted hypothesis until its cause,
+   environment, versions, and assumptions fit the current problem.
+4. **Solve and preserve selectively.** The agent fixes and tests the demonstrated
+   cause, then records the lesson only when it is non-obvious and reusable.
 
-After a miss
-or an unavailable backend, the agent stops querying Memlog and continues with
-local evidence. It uses primary documentation or the web only when the remaining
+A miss or unavailable backend is a normal outcome. The agent continues gathering
+local evidence and uses primary documentation or the web when the remaining
 uncertainty is external. Memory can accelerate debugging; it never replaces it.
 
-## Agent support
-
-Support is reported by capability rather than by a blanket “compatible” label.
-The complete, dated evidence is in the
-[agent integration matrix](docs/agent-support.md).
-
-| Host | Verified Memlog support | Automatic recall |
-| --- | --- | --- |
-| Claude Code 2.1.272 | Plugin installation plus the core recall and write workflow were live tested. | Claude adapters are included. The newest failure-event adapter has contract tests and still needs its final live run. |
-| Codex CLI 0.153.4 | Package installation, skill discovery, skill-driven recall, applicability checking, and no-write behavior [passed live evaluation](evals/codex-skill.md). | Not advertised; the controlled [hook evaluation](evals/codex-hooks.md) did not pass. |
-| Cursor, GitHub Copilot CLI, Gemini CLI | Their documentation describes relevant skill or plugin formats, but Memlog has not shipped or live-tested separate packages for them. | Not implemented. |
-
-The canonical [debugging skill](skills/debug-with-memlog/SKILL.md) follows the
-open Agent Skills format and contains the complete recall, diagnosis,
-verification, and selective-write workflow. Host packages reuse it rather than
-forking its behavior.
-
 ## Install
+
+After installation, keep working normally. When the agent encounters a concrete
+debugging failure, the skill defines when to search, how to evaluate a match,
+what to do after a miss, and whether the final lesson deserves to be saved.
 
 ### Claude Code
 
@@ -130,11 +117,20 @@ Start a new task after installation. The skill performs the verified recall path
 after it captures a concrete failure; automatic Codex hooks are not part of the
 supported path.
 
-### Other agents and standalone use
+### Other Agent Skills hosts
 
 For hosts that support Agent Skills, copy `skills/debug-with-memlog/` through the
-host's skill-installation mechanism and make `memlog` available on `PATH`. For a
-standalone CLI installation:
+host's skill-installation mechanism and make `memlog` available on `PATH`.
+These manual integrations have not been live-tested as separate Memlog packages;
+see the [agent integration matrix](docs/agent-support.md) for current status.
+
+For a host without Agent Skills, copy the short [mandate](MANDATE.md) into its
+rules file. This preserves the search timing, no-hit behavior, and selective
+write discipline, but it does not provide automatic activation.
+
+### Standalone CLI
+
+Use this when you want direct shell access without an agent package:
 
 ```bash
 git clone https://github.com/atazifor/engineering-memlog
@@ -148,18 +144,28 @@ installation and `make uninstall` removes the symlink. Override the destination
 with `make install BINDIR=/usr/local/bin`. Packaged Claude Code and Codex users do
 not need `make install`.
 
-For a host without Agent Skills, copy the short [mandate](MANDATE.md) into its
-rules file. This preserves the search timing, no-hit behavior, and selective
-write discipline, but it does not provide automatic activation.
+## What Memlog remembers
+
+Each entry preserves the part of a debugging session that source control usually
+does not:
+
+- **Problem:** the symptom that sent the investigation in the wrong direction.
+- **Cause:** why the failure was possible.
+- **Fix:** what resolved the demonstrated cause.
+- **Prevention:** the rule that should stop it recurring.
+- **Context:** the artifact, project, service, environment, tags, confidence,
+  and source needed to judge whether the lesson applies again.
+
+Git keeps the diff. Memlog keeps the reasoning that makes the diff useful later.
+The complete entry contract is documented in the [schema](SCHEMA.md).
 
 ## Search and storage
 
-The zero-configuration backend is one append-only JSONL file at
-`~/.engineering-memlog/entries.jsonl`. Search is deterministic, field-aware
-ranked keyword search: it weighs titles, tags, problems, causes, and prevention
-rules; boosts exact phrases and broader query coverage; and uses confidence and
-recency as small tie-breakers. Version 0.2.0 does not perform
-embedding or semantic search.
+By default, Memlog stores entries in one append-only local file at
+`~/.engineering-memlog/entries.jsonl`. Its current search is deterministic,
+field-aware ranked keyword search. It favors matches in titles, symptoms,
+causes, prevention rules, and tags, with smaller confidence and recency
+tie-breakers. Version 0.2.0 does not perform embedding or semantic search.
 
 The entry schema—not the file—is the contract. Set
 `ENGINEERING_MEMLOG_PROVIDER_COMMAND` to use a SQLite adapter, hosted store, or
@@ -167,22 +173,36 @@ cache without changing the skill or CLI. Provider failures are reported
 distinctly and never silently fall back to the local file. See the
 [provider protocol](PROVIDERS.md) and [retrieval roadmap](docs/retrieval-roadmap.md).
 
-## CLI
+## Agent support
+
+| Host | Supported path |
+| --- | --- |
+| Claude Code | Packaged plugin with the debugging skill, recall hooks, `/recall`, and bundled CLI. |
+| Codex | Packaged debugging skill with live-tested skill-driven recall. Automatic hooks are not part of the supported path. |
+| Other Agent Skills hosts | Manual installation of the canonical skill and CLI; separate Memlog packages have not been live tested. |
+
+Support is reported by capability rather than by a blanket compatibility claim.
+See the [dated integration matrix](docs/agent-support.md),
+[Codex skill evaluation](evals/codex-skill.md), and
+[Codex hook evaluation](evals/codex-hooks.md) for the exact evidence and
+limitations. Host packages reuse the same
+[canonical debugging skill](skills/debug-with-memlog/SKILL.md).
+
+## Manual CLI
+
+The agent workflow normally handles search and write decisions. The CLI remains
+available for explicit searches, inspection, validation, and automation:
 
 ```bash
-# Search after capturing a concrete failure
-memlog search "tailwind oxide native binding node 18"
-
-# Save a verified, reusable lesson
-memlog add --json '{"title":"...","problem":"...","cause":"...","fix":"...","prevention":"...","artifact":"...","repo":"...","service":"...","environment":"local","tags":["..."],"confidence":0.5,"status":"draft","source":"your-agent"}'
-
-# Browse newest first, or check store integrity without changing it
+memlog search "build works locally but fails in CI"
 memlog list --reverse
 memlog validate
+memlog --help
 ```
 
-Use `--file` or `ENGINEERING_MEMLOG_FILE` to select another JSONL file. The
-[schema](SCHEMA.md) documents every field and the confidence scale.
+To append explicitly, pass a complete schema-valid lesson to
+`memlog add --json`. Use `--file` or `ENGINEERING_MEMLOG_FILE` to select another
+JSONL file.
 
 ## Security and data flow
 
@@ -198,17 +218,19 @@ Never log secrets, tokens, credentials, private keys, cookies, or connection
 strings. The schema validates structure, not secret content. See the full
 [security policy](SECURITY.md).
 
-## Evidence and project resources
+## Explore the project
 
-- [Twelve sanitized example lessons](examples/entries.jsonl)
-- [Reproducible demo and baseline](demo)
-- [Agent integration status](docs/agent-support.md)
-- [Codex installed-skill evaluation](evals/codex-skill.md)
-- [Comparison with adjacent memory tools](docs/comparison.md)
-- [Semantic and hybrid retrieval proposal](docs/retrieval-roadmap.md)
-- [Discoverability audit](docs/discoverability-audit.md)
-- [Changelog](CHANGELOG.md) and [v0.2.0 notes](releases/v0.2.0.md)
-- [Contributing guide](CONTRIBUTING.md)
+- **Try it:** [reproducible demo and baseline](demo) and
+  [twelve sanitized lessons](examples/entries.jsonl).
+- **Understand it:** [entry schema](SCHEMA.md),
+  [provider protocol](PROVIDERS.md), and
+  [comparison with adjacent memory tools](docs/comparison.md).
+- **Verify it:** [agent integration status](docs/agent-support.md),
+  [Codex installed-skill evaluation](evals/codex-skill.md), and
+  [discoverability audit](docs/discoverability-audit.md).
+- **Contribute:** [retrieval roadmap](docs/retrieval-roadmap.md),
+  [contributing guide](CONTRIBUTING.md), [changelog](CHANGELOG.md), and
+  [v0.2.0 notes](releases/v0.2.0.md).
 
 Engineering Memlog is deliberately narrow: one structured lesson format, one
 debugging workflow, a zero-configuration local backend, and an escape hatch for
