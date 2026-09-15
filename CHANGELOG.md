@@ -11,6 +11,8 @@ All notable changes to engineering-memlog are documented here. Versions follow
   masked an upstream HTTP 404.
 - A semantic/hybrid retrieval proposal, sanitized evaluation corpus, and locked
   lexical baseline for future design contributions.
+- Failure-triggered recall after Bash test/build/deploy output, including failures
+  hidden by successful pipelines, with silent handling of routine command errors.
 
 ## [0.2.0] — 2026-09-15
 

@@ -18,6 +18,19 @@ class ProjectFileTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIsInstance(json.loads(path.read_text(encoding="utf-8")), dict)
 
+    def test_bash_failure_recall_is_registered_for_both_exit_paths(self) -> None:
+        config = json.loads(
+            (ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8")
+        )["hooks"]
+        for event in ("PostToolUse", "PostToolUseFailure"):
+            with self.subTest(event=event):
+                registration = config[event][0]
+                self.assertEqual(registration["matcher"], "Bash")
+                self.assertIn(
+                    "post-tool-recall.py",
+                    registration["hooks"][0]["command"],
+                )
+
     def test_documentation_has_no_obsolete_engineering_memory_paths(self) -> None:
         for path in (ROOT / "CLAUDE.md", ROOT / "commands" / "recall.md"):
             with self.subTest(path=path):

@@ -146,9 +146,21 @@ Use `--file` or `ENGINEERING_MEMLOG_FILE` to select another JSONL file. The
   languages, frameworks, service, recency, and confidence.
 - UserPromptSubmit recognizes symptom-shaped prompts and injects bounded matches;
   benign prompts stay silent.
+- PostToolUse and PostToolUseFailure inspect Bash results for strong test, build,
+  and deployment failure signals. This catches failures discovered after the
+  prompt—even when a pipeline masks the failing process's exit status—while
+  ordinary command errors and successful checks stay silent.
 - `/recall <query>` gives the user an explicit search path.
-- `MEMLOG_PLUGIN_DISABLE=1` disables both hooks for a session.
+- `MEMLOG_PLUGIN_DISABLE=1` disables all hooks for a session.
 - `MEMLOG_MANDATE=manual` keeps recall but disables automatic mandate loading.
+
+The post-command hook searches only after a concrete diagnostic signal. A hit is
+injected as an untrusted hypothesis. A no-hit response tells the agent to continue
+the debugging skill's local evidence workflow, and an unavailable provider is
+reported distinctly. This is not an error collector and does not write entries.
+`MEMLOG_PLUGIN_FAILURE_LIMIT` bounds results (default 5), and
+`MEMLOG_PLUGIN_MAX_TOOL_OUTPUT_BYTES` bounds inspected command output (default
+16384 bytes).
 
 The SessionStart hook reads common manifest files, `git remote get-url origin`,
 `git ls-files`, and nearby `CLAUDE.md`, `AGENTS.md`, or `.cursorrules` files for
@@ -164,10 +176,11 @@ does not provide Claude Code's automatic skill and hook activation.
 
 With the built-in backend, storage and ranking stay local and only the selected
 JSONL file is written. New files use mode `0600`; existing permissions are
-preserved. Recalled entries are inserted into the active Claude conversation context
-and are therefore processed wherever the configured Claude environment runs. A
-custom provider controls its own storage and network access and is user-selected
-executable code.
+preserved. Prompt text, project hints, and bounded failing Bash output may be used
+as local search queries. Recalled entries and hook guidance are inserted into the
+active Claude conversation context and are therefore processed wherever the
+configured Claude environment runs. A custom provider controls its own storage
+and network access and is user-selected executable code.
 
 Do not log secrets, tokens, credentials, private keys, cookies, or connection
 strings. The schema checks structure, not secret content. The provider command

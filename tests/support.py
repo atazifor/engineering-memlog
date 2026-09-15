@@ -16,6 +16,7 @@ SEARCH_PROMPT = REPO_ROOT / "scripts" / "memlog-search-prompt"
 CONTEXT = REPO_ROOT / "scripts" / "memlog-context"
 SESSION_HOOK = REPO_ROOT / "hooks" / "session-start.sh"
 PROMPT_HOOK = REPO_ROOT / "hooks" / "user-prompt-submit.sh"
+POST_TOOL_HOOK = REPO_ROOT / "hooks" / "post-tool-recall.py"
 EXAMPLE_PROVIDER = REPO_ROOT / "examples" / "providers" / "jsonl-provider"
 
 
@@ -119,8 +120,13 @@ class IsolatedTestCase(unittest.TestCase):
     ) -> subprocess.CompletedProcess:
         env = self.env.copy()
         env.update(env_updates or {})
+        command = (
+            [sys.executable, str(hook)]
+            if hook.suffix == ".py"
+            else ["/bin/bash", str(hook)]
+        )
         return subprocess.run(
-            ["/bin/bash", str(hook)],
+            command,
             input=input_text,
             text=True,
             capture_output=True,
