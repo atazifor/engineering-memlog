@@ -17,7 +17,34 @@ the root cause and fix have been verified.
 [![Codex skill](https://img.shields.io/badge/Codex%20skill-live%20tested-10a37f)](evals/codex-skill.md)
 ![Dependencies: standard library only](https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen)
 
-### A concrete example
+## When Memlog earns its keep
+
+Memlog is useful when the diagnosis was expensive but the lesson is portable.
+The included [sanitized examples](examples/entries.jsonl) cover situations such
+as:
+
+- **A surface error points at the wrong layer.** A JSON parser exception hides
+  the upstream HTTP 404 that actually caused the failure.
+- **Local and production systems accept different data.** SQLite-backed tests
+  pass while PostgreSQL rejects an empty string written to a `jsonb` column.
+- **A framework failure depends on the runtime version.** Tailwind's native
+  binding is present in the lockfile but fails under Node 18 in CI.
+- **Writes succeed while the UI keeps showing defaults.** The database row is
+  correct, but a Go response struct without JSON tags emits PascalCase fields
+  that its snake_case client does not recognize.
+- **Generated state survives after the source is gone.** A deleted Next.js route
+  leaves a stale generated validator that produces a phantom type-check error.
+- **The endpoint works in `curl` but the browser never sends the request.** An
+  `OPTIONS` preflight returns 200 but omits `PATCH` from
+  `Access-Control-Allow-Methods`, so the browser reports only a generic network
+  error.
+
+Do not save typos, syntax mistakes, routine command failures, transient errors,
+retries, search misses, speculative diagnoses, failed hypotheses, or unverified
+fixes. If the lesson is obvious from the error and the adjacent line of code, it
+does not belong in Memlog.
+
+## A concrete example
 
 A billing integration reports a JSON parsing error. The useful memory is not the
 exception itself; it is the earlier lesson that says to check the upstream HTTP
@@ -53,33 +80,6 @@ After a miss
 or an unavailable backend, the agent stops querying Memlog and continues with
 local evidence. It uses primary documentation or the web only when the remaining
 uncertainty is external. Memory can accelerate debugging; it never replaces it.
-
-## When Memlog earns its keep
-
-Memlog is useful when the diagnosis was expensive but the lesson is portable.
-The included [sanitized examples](examples/entries.jsonl) cover situations such
-as:
-
-- **A surface error points at the wrong layer.** A JSON parser exception hides
-  the upstream HTTP 404 that actually caused the failure.
-- **Local and production systems accept different data.** SQLite-backed tests
-  pass while PostgreSQL rejects an empty string written to a `jsonb` column.
-- **A framework failure depends on the runtime version.** Tailwind's native
-  binding is present in the lockfile but fails under Node 18 in CI.
-- **Writes succeed while the UI keeps showing defaults.** The database row is
-  correct, but a Go response struct without JSON tags emits PascalCase fields
-  that its snake_case client does not recognize.
-- **Generated state survives after the source is gone.** A deleted Next.js route
-  leaves a stale generated validator that produces a phantom type-check error.
-- **The endpoint works in `curl` but the browser never sends the request.** An
-  `OPTIONS` preflight returns 200 but omits `PATCH` from
-  `Access-Control-Allow-Methods`, so the browser reports only a generic network
-  error.
-
-Do not save typos, syntax mistakes, routine command failures, transient errors,
-retries, search misses, speculative diagnoses, failed hypotheses, or unverified
-fixes. If the lesson is obvious from the error and the adjacent line of code, it
-does not belong in Memlog.
 
 ## Agent support
 

@@ -101,7 +101,11 @@ class DocumentationAssetTests(unittest.TestCase):
             )
         ]
 
-        self.assertLess(readme.index("### A concrete example"), readme.index("assets/memlog-demo.gif"))
+        self.assertLess(readme.index("## A concrete example"), readme.index("assets/memlog-demo.gif"))
+        self.assertLess(
+            readme.index("## When Memlog earns its keep"),
+            readme.index("## A concrete example"),
+        )
         self.assertLess(readme.index("## How it works"), readme.index("## Install"))
         self.assertLess(
             readme.index("## When Memlog earns its keep"), readme.index("## Install")
