@@ -60,6 +60,16 @@ def load_json_payload(raw: str) -> Dict[str, Any]:
     return payload
 
 
+def positive_int(raw: str) -> int:
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return value
+
+
 def validate_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     missing = [field for field in REQUIRED_FIELDS if field not in entry]
     if missing:
@@ -96,9 +106,14 @@ def iter_entries(data_file: Path):
             if not line:
                 continue
             try:
-                yield line_no, json.loads(line)
+                entry = json.loads(line)
             except json.JSONDecodeError:
                 print(f"Skipping invalid JSON on line {line_no}", file=sys.stderr)
+                continue
+            if not isinstance(entry, dict):
+                print(f"Skipping non-object JSON on line {line_no}", file=sys.stderr)
+                continue
+            yield line_no, entry
 
 
 def print_jsonl(entries: List[Dict[str, Any]]) -> None:
@@ -213,7 +228,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     search_parser = subparsers.add_parser("search", help="Keyword search entries")
     search_parser.add_argument("query", help="Search text")
-    search_parser.add_argument("--limit", type=int, default=10)
+    search_parser.add_argument("--limit", type=positive_int, default=10)
     search_parser.add_argument(
         "--json",
         action="store_true",
@@ -222,7 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.set_defaults(func=cmd_search)
 
     list_parser = subparsers.add_parser("list", help="List entries")
-    list_parser.add_argument("--limit", type=int, default=20)
+    list_parser.add_argument("--limit", type=positive_int, default=20)
     list_parser.add_argument("--reverse", action="store_true", help="Show newest first")
     list_parser.add_argument(
         "--json",

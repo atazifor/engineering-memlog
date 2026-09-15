@@ -38,7 +38,7 @@ when:
 Run it as a Bash command:
 
 ```bash
-~/engineering-memory/bin/memlog search "frozen-lockfile" --json --limit 10
+memlog search "frozen-lockfile" --json --limit 10
 ```
 
 Search for the concrete signal — keywords from the error message, the
@@ -56,7 +56,7 @@ Before concluding a meaningful task, ask:
 If the answer to any is yes, append an entry:
 
 ```bash
-~/engineering-memory/bin/memlog add --json '<JSON object>'
+memlog add --json '<JSON object>'
 ```
 
 For long payloads, write the JSON to a temp file first to avoid shell-

@@ -57,10 +57,22 @@ def iter_entries(path: Path) -> Iterable[Dict[str, Any]]:
             if not line:
                 continue
             try:
-                yield json.loads(line)
+                entry = json.loads(line)
             except json.JSONDecodeError:
                 # Bad line — skip; don't fail the whole shortlist.
                 continue
+            if isinstance(entry, dict):
+                yield entry
+
+
+def positive_int(raw: str) -> int:
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return value
 
 
 def parse_iso(ts: Optional[str]) -> Optional[datetime]:
@@ -176,7 +188,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--limit",
-        type=int,
+        type=positive_int,
         default=8,
         help="Number of top entries to emit (default: 8)",
     )

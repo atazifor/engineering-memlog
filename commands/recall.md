@@ -11,13 +11,13 @@ Steps:
 1. Run the memlog search command with the user's query:
 
 ```bash
-~/engineering-memory/bin/memlog search "$ARGUMENTS" --json --limit 10
+memlog search "$ARGUMENTS" --json --limit 10
 ```
 
 If `$ARGUMENTS` is empty, instead run:
 
 ```bash
-~/engineering-memlog/scripts/memlog-context | ~/engineering-memlog/scripts/memlog-shortlist --file ~/engineering-memory/data/entries.jsonl --limit 10
+"${CLAUDE_PLUGIN_ROOT}/scripts/memlog-context" | "${CLAUDE_PLUGIN_ROOT}/scripts/memlog-shortlist" --limit 10
 ```
 
 2. Parse each JSONL line. For every hit, show the user a compact summary:
