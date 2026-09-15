@@ -90,7 +90,7 @@ class DocumentationAssetTests(unittest.TestCase):
         self.assertIn("After a miss\nor an unavailable backend", readme)
         self.assertIn("assets/memlog-demo.gif", readme)
         self.assertIn("docs/comparison.md", readme)
-        self.assertIn("not a history of every error", readme)
+        self.assertIn("Memlog is not an error log", readme)
         self.assertIn("does not perform\nembedding or semantic search", readme)
 
     def test_readme_leads_with_the_product_boundary_and_six_grounded_uses(self) -> None:

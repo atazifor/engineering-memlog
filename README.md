@@ -2,15 +2,13 @@
 
 ## Give your coding agent the debugging lessons worth keeping
 
-Engineering Memlog is a local-first, cross-project memory of verified debugging
-lessons for AI coding agents. After a difficult root cause is proven, it
-preserves the symptom, cause, fix, and prevention rule. During a later
-investigation, its debugging skill can retrieve that lesson, test whether it
-fits the current evidence, and continue normal diagnosis when it does not.
+Engineering Memlog gives AI coding agents a durable memory of hard-won
+debugging lessons across projects. When a real failure appears, the agent
+searches previously verified causes, checks whether one fits the current
+evidence, and continues normal diagnosis when nothing does.
 
-Memlog is not a history of every error or a transcript of every session. Most
-failures should never be saved—only non-obvious, reusable lessons that can
-materially shorten a future investigation.
+Memlog is not an error log. It records only non-obvious, reusable lessons after
+the root cause and fix have been verified.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)
