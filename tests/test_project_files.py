@@ -30,6 +30,11 @@ class ProjectFileTests(unittest.TestCase):
         self.assertIn("without a separate clone or `make install`", readme)
         self.assertNotIn("only adds the read-side hooks", readme)
 
+    def test_security_docs_disclose_model_context_and_custom_provider_flow(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("active Claude conversation context", readme)
+        self.assertIn("custom provider controls its own storage", readme)
+
 
 if __name__ == "__main__":
     unittest.main()

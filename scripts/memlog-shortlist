@@ -39,6 +39,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from memlog_provider import ProviderError, iter_entries
 
 DEFAULT_DATA_FILE = Path(
     os.environ.get(
@@ -46,23 +51,6 @@ DEFAULT_DATA_FILE = Path(
         str(Path.home() / ".engineering-memlog" / "entries.jsonl"),
     )
 )
-
-
-def iter_entries(path: Path) -> Iterable[Dict[str, Any]]:
-    if not path.exists():
-        return
-    with path.open("r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                # Bad line — skip; don't fail the whole shortlist.
-                continue
-            if isinstance(entry, dict):
-                yield entry
 
 
 def positive_int(raw: str) -> int:
@@ -207,6 +195,12 @@ def main() -> int:
         action="store_true",
         help="Include the computed score under '_score' in each emitted entry",
     )
+    parser.add_argument(
+        "--max-bytes",
+        type=positive_int,
+        default=65536,
+        help="Maximum UTF-8 bytes to emit, preserving complete JSONL records",
+    )
     args = parser.parse_args()
 
     sig = load_signature(args)
@@ -214,10 +208,14 @@ def main() -> int:
     data_file = Path(args.file)
 
     scored: List[Tuple[float, Dict[str, Any]]] = []
-    for entry in iter_entries(data_file):
-        score = score_entry(entry, sig, now)
-        if score >= args.min_score:
-            scored.append((score, entry))
+    try:
+        for entry in iter_entries(data_file):
+            score = score_entry(entry, sig, now)
+            if score >= args.min_score:
+                scored.append((score, entry))
+    except (OSError, ProviderError) as exc:
+        print(f"Memlog backend unavailable: {exc}", file=sys.stderr)
+        return 2
 
     # Sort by (-score, -timestamp) so within-score ties are recency-first.
     def sort_key(item: Tuple[float, Dict[str, Any]]) -> Tuple[float, float]:
@@ -229,10 +227,16 @@ def main() -> int:
     scored.sort(key=sort_key)
     top = scored[: args.limit]
 
+    emitted_bytes = 0
     for score, entry in top:
         if args.debug:
             entry = {**entry, "_score": round(score, 2)}
-        print(json.dumps(entry, ensure_ascii=False))
+        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        line_bytes = len(line.encode("utf-8"))
+        if emitted_bytes + line_bytes > args.max_bytes:
+            break
+        sys.stdout.write(line)
+        emitted_bytes += line_bytes
     return 0
 
 

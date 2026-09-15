@@ -36,13 +36,14 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Set
+from typing import List, Set
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from memlog_provider import ProviderError, iter_entries
 from memlog_retrieval import rank_entries
 
 
@@ -190,22 +191,6 @@ def is_symptom(text: str) -> bool:
     return bool(SYMPTOM_RE.search(text))
 
 
-def iter_entries(path: Path) -> Iterable[Dict[str, Any]]:
-    if not path.exists():
-        return
-    with path.open("r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(entry, dict):
-                yield entry
-
-
 def positive_int(raw: str) -> int:
     try:
         value = int(raw)
@@ -233,6 +218,12 @@ def main() -> int:
         "--debug",
         action="store_true",
         help="Print decision metadata to stderr (keywords, symptom-flag, hit count)",
+    )
+    parser.add_argument(
+        "--max-bytes",
+        type=positive_int,
+        default=65536,
+        help="Maximum UTF-8 bytes to emit, preserving complete JSONL records",
     )
     args = parser.parse_args()
 
@@ -265,14 +256,24 @@ def main() -> int:
         print(f"keywords={keywords}", file=sys.stderr)
 
     data_file = Path(args.file)
-    scored = rank_entries(iter_entries(data_file), keywords)
+    try:
+        scored = rank_entries(iter_entries(data_file), keywords)
+    except (OSError, ProviderError) as exc:
+        print(f"Memlog backend unavailable: {exc}", file=sys.stderr)
+        return 2
     top = scored[: args.limit]
 
     if args.debug:
         print(f"hits={len(scored)} emitted={len(top)}", file=sys.stderr)
 
+    emitted_bytes = 0
     for _, entry in top:
-        print(json.dumps(entry, ensure_ascii=False))
+        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        line_bytes = len(line.encode("utf-8"))
+        if emitted_bytes + line_bytes > args.max_bytes:
+            break
+        sys.stdout.write(line)
+        emitted_bytes += line_bytes
     return 0
 
 

@@ -1,9 +1,9 @@
 # Entry schema
 
-The log is one append-only file — `entries.jsonl` — with one JSON object
-per line ([JSONL](https://jsonlines.org/)). **The file format is the
-contract.** The `memlog` script is one reference implementation; anything
-that can append and read valid lines is a valid client.
+The built-in store is one append-only file — `entries.jsonl` — with one JSON
+object per line ([JSONL](https://jsonlines.org/)). **The entry shape is the data
+contract.** The `memlog` script owns validation and ranking. Custom stores plug
+in through the versioned interface in [PROVIDERS.md](PROVIDERS.md).
 
 ## Fields
 
@@ -54,7 +54,7 @@ Do not supply `timestamp` or `id` to `memlog add`; the command owns those
 bookkeeping fields. Records written before schema versioning omit
 `schema_version` and are treated as legacy version 1 during validation.
 
-## Integrity guarantees
+## Built-in JSONL integrity guarantees
 
 - A newly created data file uses mode `0600`; existing file permissions are not
   changed, so team-shared logs keep their administrator-selected mode.

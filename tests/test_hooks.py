@@ -63,6 +63,35 @@ class PromptHookTests(IsolatedTestCase):
                     "UserPromptSubmit",
                 )
 
+    def test_prompt_hook_reads_external_provider_and_reports_outage(self) -> None:
+        write_jsonl(self.provider_log, [make_entry(id="provider-hook-hit")])
+        available = self.run_hook(
+            PROMPT_HOOK,
+            json.dumps({"prompt": "PostgreSQL timeout error"}),
+            self.provider_env(),
+        )
+        unavailable = self.run_hook(
+            PROMPT_HOOK,
+            json.dumps({"prompt": "PostgreSQL timeout error"}),
+            {"ENGINEERING_MEMLOG_PROVIDER_COMMAND": str(self.temp / "missing")},
+        )
+
+        self.assertIn("provider-hook-hit", available.stdout)
+        self.assertIn("backend unavailable", unavailable.stdout.lower())
+        self.assertIn("continue local diagnosis", unavailable.stdout.lower())
+
+    def test_prompt_hook_honors_context_byte_limit(self) -> None:
+        write_jsonl(self.log, [make_entry(problem="timeout " * 1000)])
+
+        result = self.run_hook(
+            PROMPT_HOOK,
+            json.dumps({"prompt": "PostgreSQL timeout error"}),
+            {"MEMLOG_PLUGIN_MAX_CONTEXT_BYTES": "1"},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
+
 
 class SessionHookTests(IsolatedTestCase):
     def test_disabled_hook_is_silent(self) -> None:
@@ -78,7 +107,7 @@ class SessionHookTests(IsolatedTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertEqual(output["hookEventName"], "SessionStart")
-        self.assertIn("engineering-memlog-mandate v3", output["additionalContext"])
+        self.assertIn("engineering-memlog-mandate v4", output["additionalContext"])
 
     def test_manual_mode_is_silent_without_matches(self) -> None:
         self.install_healthy_cli_marker()
@@ -89,7 +118,7 @@ class SessionHookTests(IsolatedTestCase):
     def test_current_project_marker_suppresses_duplicate_mandate(self) -> None:
         self.install_healthy_cli_marker()
         (self.project / "CLAUDE.md").write_text(
-            "<!-- engineering-memlog-mandate v3 -->\n",
+            "<!-- engineering-memlog-mandate v4 -->\n",
             encoding="utf-8",
         )
 
@@ -136,6 +165,52 @@ class SessionHookTests(IsolatedTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertIn("write-half unavailable", output["additionalContext"])
+
+    def test_session_hook_reads_external_provider_and_reports_outage(self) -> None:
+        self.install_healthy_cli_marker()
+        write_jsonl(
+            self.provider_log,
+            [make_entry(id="provider-session-hit", tags=["react"])],
+        )
+        (self.project / "package.json").write_text(
+            json.dumps({"dependencies": {"react": "latest"}}), encoding="utf-8"
+        )
+
+        available = self.run_hook(
+            SESSION_HOOK,
+            env_updates={**self.provider_env(), "MEMLOG_MANDATE": "manual"},
+        )
+        unavailable = self.run_hook(
+            SESSION_HOOK,
+            env_updates={
+                "ENGINEERING_MEMLOG_PROVIDER_COMMAND": str(self.temp / "missing"),
+                "MEMLOG_MANDATE": "manual",
+            },
+        )
+
+        self.assertIn("provider-session-hit", available.stdout)
+        self.assertIn("backend unavailable", unavailable.stdout.lower())
+
+    def test_session_hook_honors_context_byte_limit(self) -> None:
+        self.install_healthy_cli_marker()
+        (self.project / "package.json").write_text(
+            json.dumps({"dependencies": {"react": "latest"}}), encoding="utf-8"
+        )
+        write_jsonl(
+            self.log,
+            [make_entry(tags=["react"], problem="hydration mismatch " * 1000)],
+        )
+
+        result = self.run_hook(
+            SESSION_HOOK,
+            env_updates={
+                "MEMLOG_MANDATE": "manual",
+                "MEMLOG_PLUGIN_MAX_CONTEXT_BYTES": "1",
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
 
 
 if __name__ == "__main__":

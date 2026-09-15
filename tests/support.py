@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import shlex
 import sys
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ SEARCH_PROMPT = REPO_ROOT / "scripts" / "memlog-search-prompt"
 CONTEXT = REPO_ROOT / "scripts" / "memlog-context"
 SESSION_HOOK = REPO_ROOT / "hooks" / "session-start.sh"
 PROMPT_HOOK = REPO_ROOT / "hooks" / "user-prompt-submit.sh"
+EXAMPLE_PROVIDER = REPO_ROOT / "examples" / "providers" / "jsonl-provider"
 
 
 def make_entry(**overrides: Any) -> Dict[str, Any]:
@@ -56,6 +58,7 @@ class IsolatedTestCase(unittest.TestCase):
         self.log = self.temp / "entries.jsonl"
         self.project = self.temp / "project"
         self.project.mkdir()
+        self.provider_log = self.temp / "provider-entries.jsonl"
 
         python_bin = self.temp / "bin"
         python_bin.mkdir()
@@ -96,6 +99,18 @@ class IsolatedTestCase(unittest.TestCase):
     def run_memlog(self, *args: str) -> subprocess.CompletedProcess:
         return self.run_program(MEMLOG, "--file", str(self.log), *args)
 
+    def provider_env(self) -> Dict[str, str]:
+        env = self.env.copy()
+        env.update(
+            {
+                "ENGINEERING_MEMLOG_PROVIDER_COMMAND": shlex.join(
+                    [sys.executable, str(EXAMPLE_PROVIDER)]
+                ),
+                "MEMLOG_PROVIDER_FILE": str(self.provider_log),
+            }
+        )
+        return env
+
     def run_hook(
         self,
         hook: Path,
@@ -119,4 +134,3 @@ class IsolatedTestCase(unittest.TestCase):
         bin_dir = self.home / ".local" / "bin"
         bin_dir.mkdir(parents=True)
         (bin_dir / "memlog").symlink_to(MEMLOG)
-

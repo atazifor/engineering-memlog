@@ -8,15 +8,15 @@ judgment — what is worth logging, and when to search — lives in your agent's
 rules file, not here.
 See README.md.
 
-Default data file: ~/.engineering-memlog/entries.jsonl
+Default backend: ~/.engineering-memlog/entries.jsonl
 Override per-call:  --file <path>
 Override globally:  ENGINEERING_MEMLOG_FILE=<path> in the environment.
+Custom provider:    ENGINEERING_MEMLOG_PROVIDER_COMMAND=<command>
 
 Stdlib only — no dependencies. Python 3.8+.
 """
 import argparse
 import json
-import math
 import os
 import sys
 import uuid
@@ -24,7 +24,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+from memlog_provider import ProviderError, append_entry, iter_entries, scan_records
 from memlog_retrieval import rank_entries
+from memlog_schema import CURRENT_SCHEMA_VERSION, entry_validation_errors
 
 DEFAULT_DATA_FILE = Path(
     os.environ.get(
@@ -32,38 +34,6 @@ DEFAULT_DATA_FILE = Path(
         str(Path.home() / ".engineering-memlog" / "entries.jsonl"),
     )
 )
-
-REQUIRED_FIELDS = [
-    "title",
-    "problem",
-    "fix",
-    "cause",
-    "prevention",
-    "artifact",
-    "repo",
-    "service",
-    "environment",
-    "tags",
-    "confidence",
-    "status",
-    "source",
-]
-
-REQUIRED_NONEMPTY_TEXT_FIELDS = [
-    "title",
-    "problem",
-    "cause",
-    "fix",
-    "prevention",
-    "artifact",
-    "repo",
-    "environment",
-    "status",
-    "source",
-]
-
-CURRENT_SCHEMA_VERSION = 1
-
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -90,74 +60,6 @@ def positive_int(raw: str) -> int:
     return value
 
 
-def valid_timestamp(value: Any) -> bool:
-    if not isinstance(value, str) or not value:
-        return False
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    return parsed.tzinfo is not None
-
-
-def entry_validation_errors(
-    entry: Dict[str, Any],
-    allow_legacy_schema: bool = True,
-) -> List[str]:
-    errors: List[str] = []
-    missing = [field for field in REQUIRED_FIELDS if field not in entry]
-    if missing:
-        errors.append(f"Missing required fields: {', '.join(missing)}")
-
-    for field in REQUIRED_NONEMPTY_TEXT_FIELDS:
-        if field not in entry:
-            continue
-        value = entry[field]
-        if not isinstance(value, str):
-            errors.append(f"Field '{field}' must be a string.")
-        elif not value.strip():
-            errors.append(f"Field '{field}' must not be empty.")
-
-    if "service" in entry and not isinstance(entry["service"], str):
-        errors.append("Field 'service' must be a string.")
-
-    tags = entry.get("tags")
-    if not isinstance(tags, list) or not all(
-        isinstance(tag, str) and bool(tag.strip()) for tag in tags
-    ):
-        errors.append("Field 'tags' must be a JSON array of non-empty strings.")
-
-    confidence = entry.get("confidence")
-    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
-        errors.append("Field 'confidence' must be numeric.")
-    elif not math.isfinite(float(confidence)) or not 0.0 <= float(confidence) <= 1.0:
-        errors.append("Field 'confidence' must be between 0.0 and 1.0.")
-
-    schema_version = entry.get("schema_version")
-    if schema_version is None and not allow_legacy_schema:
-        errors.append("Field 'schema_version' is required.")
-    elif schema_version is not None and (
-        isinstance(schema_version, bool)
-        or not isinstance(schema_version, int)
-        or schema_version != CURRENT_SCHEMA_VERSION
-    ):
-        errors.append(
-            f"Field 'schema_version' must be {CURRENT_SCHEMA_VERSION}."
-        )
-
-    if "id" not in entry:
-        errors.append("Missing auto-filled field: id")
-    elif not isinstance(entry["id"], str) or not entry["id"].strip():
-        errors.append("Field 'id' must be a non-empty string.")
-
-    if "timestamp" not in entry:
-        errors.append("Missing auto-filled field: timestamp")
-    elif not valid_timestamp(entry["timestamp"]):
-        errors.append("Field 'timestamp' must be an RFC3339 timestamp with a timezone.")
-
-    return errors
-
-
 def validate_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     supplied = [field for field in ("id", "timestamp") if field in entry]
     if supplied:
@@ -176,40 +78,6 @@ def validate_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
 
     entry["confidence"] = float(entry["confidence"])
     return entry
-
-
-def append_entry(entry: Dict[str, Any], data_file: Path) -> None:
-    data_file.parent.mkdir(parents=True, exist_ok=True)
-    encoded = (json.dumps(entry, ensure_ascii=False) + "\n").encode("utf-8")
-    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
-    descriptor = os.open(str(data_file), flags, 0o600)
-    try:
-        written = os.write(descriptor, encoded)
-        if written != len(encoded):
-            raise OSError(
-                f"Short append: wrote {written} of {len(encoded)} bytes"
-            )
-    finally:
-        os.close(descriptor)
-
-
-def iter_entries(data_file: Path):
-    if not data_file.exists():
-        return
-    with data_file.open("r", encoding="utf-8") as fh:
-        for line_no, line in enumerate(fh, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                print(f"Skipping invalid JSON on line {line_no}", file=sys.stderr)
-                continue
-            if not isinstance(entry, dict):
-                print(f"Skipping non-object JSON on line {line_no}", file=sys.stderr)
-                continue
-            yield line_no, entry
 
 
 def print_jsonl(entries: List[Dict[str, Any]]) -> None:
@@ -235,7 +103,7 @@ def cmd_add(args: argparse.Namespace) -> int:
 
 def cmd_search(args: argparse.Namespace) -> int:
     data_file = Path(args.file)
-    entries = (entry for _, entry in iter_entries(data_file) or [])
+    entries = iter_entries(data_file)
     matches = [entry for _, entry in rank_entries(entries, [args.query])[: args.limit]]
 
     if args.json:
@@ -257,7 +125,7 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 def cmd_list(args: argparse.Namespace) -> int:
     data_file = Path(args.file)
-    entries = [entry for _, entry in iter_entries(data_file) or []]
+    entries = list(iter_entries(data_file))
     if args.reverse:
         entries = list(reversed(entries))
     if args.limit:
@@ -282,34 +150,22 @@ def cmd_validate(args: argparse.Namespace) -> int:
     errors = []
     seen_ids = set()
 
-    if data_file.exists():
-        with data_file.open("r", encoding="utf-8") as fh:
-            for line_no, raw_line in enumerate(fh, start=1):
-                line = raw_line.strip()
-                if not line:
-                    continue
-                messages = []
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError as exc:
-                    entry = None
-                    messages.append(f"invalid JSON: {exc.msg}")
+    for record in scan_records(data_file, strict_provider=False):
+        messages = [record.error] if record.error else []
+        entry = record.entry
+        if entry is not None:
+            messages.extend(entry_validation_errors(entry))
+            entry_id = entry.get("id")
+            if isinstance(entry_id, str) and entry_id in seen_ids:
+                messages.append(f"duplicate id: {entry_id}")
+            elif isinstance(entry_id, str):
+                seen_ids.add(entry_id)
 
-                if entry is not None and not isinstance(entry, dict):
-                    messages.append("entry must be a JSON object")
-                elif isinstance(entry, dict):
-                    messages.extend(entry_validation_errors(entry))
-                    entry_id = entry.get("id")
-                    if isinstance(entry_id, str) and entry_id in seen_ids:
-                        messages.append(f"duplicate id: {entry_id}")
-                    elif isinstance(entry_id, str):
-                        seen_ids.add(entry_id)
-
-                if messages:
-                    invalid += 1
-                    errors.append({"line": line_no, "message": " ".join(messages)})
-                else:
-                    valid += 1
+        if messages:
+            invalid += 1
+            errors.append({"line": record.position, "message": " ".join(messages)})
+        else:
+            valid += 1
 
     report = {"valid": valid, "invalid": invalid, "errors": errors}
     if args.json:
@@ -382,7 +238,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return args.func(args)
-    except OSError as exc:
+    except (OSError, ProviderError) as exc:
         print(f"Memlog backend unavailable: {exc}", file=sys.stderr)
         return 2
 

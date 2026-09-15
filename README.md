@@ -11,7 +11,7 @@
 >
 > **The fix:** before finishing a task, the agent appends a structured lesson — *problem, cause, fix, prevention* — to one shared JSONL log. Next time the symptom shows up, it searches the log and skips the re-derivation.
 
-That's the whole thing: **one JSONL file, a small stdlib CLI, and a focused debugging workflow for your agent.** No database, no embeddings, no network calls. On Claude Code, a plugin combines that workflow with automatic retrieval hints so relevant prior lessons surface while the failure is being investigated.
+That's the default: **one JSONL file, a small stdlib CLI, and a focused debugging workflow for your agent.** No database, embeddings, or network calls are required. On Claude Code, a plugin combines that workflow with automatic retrieval hints so relevant prior lessons surface while the failure is being investigated. An optional provider protocol lets you keep the workflow while swapping in your own datastore or cache.
 
 **Keywords:** AI agent memory · persistent memory for LLM coding assistants · Claude Code plugin · Cursor / AGENTS.md · cross-project knowledge base · stop repeating bugs.
 
@@ -19,13 +19,13 @@ That's the whole thing: **one JSONL file, a small stdlib CLI, and a focused debu
 
 The division is the whole idea.
 
-**1. A structured log.** One append-only file, `entries.jsonl` — one JSON object per line, shared across every project. See [SCHEMA.md](SCHEMA.md).
+**1. A structured log.** By default, one append-only file, `entries.jsonl` — one JSON object per line, shared across every project. See [SCHEMA.md](SCHEMA.md).
 
 **2. An agent policy.** The [mandate](MANDATE.md) defines when to preserve a verified lesson. The Claude Code plugin also ships `debug-with-memlog`, a model-invocable skill that searches after a concrete failure is captured, validates any hit as a hypothesis, continues local diagnosis on a miss, and writes back only after verification.
 
 **3. A CLI.** `memlog add`, `search`, `list`. Python standard library only.
 
-The storage layer is deliberately dumb: append one JSON line and scan the file on reads. Search uses deterministic lexical ranking, while judgment—what is worth logging, when to search, and whether a result applies—stays with the agent workflow. The file format is the contract; the Python is one replaceable implementation.
+The default storage layer is deliberately dumb: append one JSON line and scan the file on reads. Search uses deterministic lexical ranking, while judgment—what is worth logging, when to search, and whether a result applies—stays with the agent workflow. The entry schema and the small [provider protocol](PROVIDERS.md) are the contracts; the bundled JSONL backend remains the zero-configuration implementation.
 
 ## Install
 
@@ -44,10 +44,11 @@ memlog --help
 `git pull` updates it in place — no stale copy. Override the location with
 `make install BINDIR=/usr/local/bin`. Run `make doctor` any time to check the
 install, PATH, and python3; `make uninstall` removes the symlink. (Prefer the
-manual way? Copy both `memlog` and `memlog_retrieval.py` into the same bin
-directory, then make `memlog` executable. Re-copy both after each pull.)
+manual way? Copy `memlog`, `memlog_retrieval.py`, `memlog_provider.py`, and
+`memlog_schema.py` into the same bin directory, then make `memlog` executable.
+Re-copy all four after each pull.)
 
-The log lives at `~/.engineering-memlog/entries.jsonl` by default. Override with `--file` or `ENGINEERING_MEMLOG_FILE` — point it inside a repo if you want a team to share one.
+The log lives at `~/.engineering-memlog/entries.jsonl` by default. Override with `--file` or `ENGINEERING_MEMLOG_FILE` — point it inside a repo if you want a team to share one. To use SQLite, a hosted store, or a cached adapter instead, set `ENGINEERING_MEMLOG_PROVIDER_COMMAND`; see [Storage providers](PROVIDERS.md).
 
 ## Usage
 
@@ -72,8 +73,9 @@ the title, tags, problem, cause, prevention, artifact, fix, repo, service, and
 environment; exact phrases receive a boost, while confidence and recency break
 close ties. Multi-term queries must match more than one term, which keeps a generic
 word such as “failure” from flooding the results. Retrieval still performs a
-linear scan of the JSONL file—simple and appropriate for a personal log, with no
-index or cache to maintain.
+linear scan with the built-in JSONL backend—simple and appropriate for a personal
+log, with no index or cache to maintain. An external provider can maintain an
+index or cache while returning the same entry stream to the ranker.
 
 ## How your agent uses the log
 
@@ -118,9 +120,11 @@ The **SessionStart** hook fires once per session at startup, so it won't trigger
 
 For a quick sanity check in a fresh session, ask: *"What memlog entries do you have in your starting context? Show me the top 3 titles."* If the hook fired, the model will list them.
 
-The bundled CLI and hooks use the same default
-`~/.engineering-memlog/entries.jsonl` file. Set `ENGINEERING_MEMLOG_FILE` before
-starting Claude Code to select a different store. Use the standalone installation
+The bundled CLI and hooks use the same selected backend. By default that is
+`~/.engineering-memlog/entries.jsonl`; set `ENGINEERING_MEMLOG_FILE` before
+starting Claude Code to select a different file, or set
+`ENGINEERING_MEMLOG_PROVIDER_COMMAND` to use a custom provider. Provider errors
+are reported distinctly and never fall back to the file. Use the standalone installation
 above only when you also want `memlog` in ordinary terminal sessions or in another
 agent that does not load this plugin.
 
@@ -135,33 +139,41 @@ If you're not on Claude Code or don't want hooks, the original prose-only mandat
 ## What it isn't
 
 - **Not Claude Code's native auto-memory.** That saves free-form prose about your preferences and project context, per project. This is structured, engineering-incident-shaped, cross-project, and built to be queried as much as read.
-- **Not a general agent-memory layer** like Mem0 or OpenMemory. Those are broader and more capable. This is deliberately narrow: one schema, one file, one concern — operational engineering knowledge.
+- **Not a general agent-memory layer** like Mem0 or OpenMemory. Those are broader and more capable. This is deliberately narrow: one schema, one default file (or a provider you choose), one concern — operational engineering knowledge.
 
-The narrowness is the point. It's an opinion, expressed as 200 lines of code.
+The narrowness is the point. It's an opinion, expressed as a small codebase.
 
 ## Security & data flow
 
-**What it reads** (locally only):
+**What the built-in plugin reads locally:**
 
 - Manifest files at the project cwd: `go.mod`, `package.json`, `pom.xml`, `Cargo.toml`, `pyproject.toml`, `Gemfile`, etc. — to detect languages and frameworks for the relevance ranker.
 - `git remote get-url origin` and `git ls-files` — to detect repo name and run a file-extension census. Both are read-only.
 - `CLAUDE.md` / `AGENTS.md` / `.cursorrules` in the cwd (and its parents) — for optional `stack:` / `tags:` hint lines.
-- Your engineering-memlog JSONL file — by default `~/.engineering-memlog/entries.jsonl` (override with `ENGINEERING_MEMLOG_FILE`).
+- Your engineering-memlog entries — from the default JSONL file. When you
+  configure a provider, that executable supplies entries instead.
 
 **What it writes:**
 
-- `entries.jsonl` — append-only, when the agent runs `memlog add`. New files are
-  created with mode `0600`; existing permissions are preserved. That's the entire
-  write surface.
+- With the built-in backend, only `entries.jsonl` — append-only, when the agent
+  runs `memlog add`. New files are created with mode `0600`; existing permissions
+  are preserved. A custom provider receives the validated entry and controls its
+  own write surface.
 
 **What it sends over the network:**
 
-- **Nothing.** All processing — sniffing, ranking, searching — runs in stdlib Python locally. No telemetry, no remote API calls, no embeddings service, no LLM-in-the-loop. The mandate prose tells the agent what to remember; the deterministic ranker decides what to surface. There is no network code in this plugin.
+- The storage and ranking code sends nothing over the network with the built-in
+  backend. The Claude Code hooks place a bounded selection of recalled entries
+  into the active Claude conversation context, so those entries are processed
+  wherever your configured Claude environment runs under its data-handling terms.
+- A custom provider is executable code chosen by you and may access whatever
+  network or service you configure it to use; review it and its data handling
+  separately. Memlog includes no telemetry, remote API, or embeddings service.
 
 **What it never does:**
 
 - The mandate explicitly forbids logging secrets — tokens, passwords, credentials, private keys, session cookies, connection strings. The schema enforces structure but not secret detection; that's on the agent following the rule.
-- It does not exfiltrate, transmit, or upload your log anywhere. The log is your file on your disk.
+- The built-in backend does not exfiltrate, transmit, or upload your log anywhere. A custom provider controls its own storage and transmission.
 
 **Sandboxing the plugin per-session:** `MEMLOG_PLUGIN_DISABLE=1` in your shell skips both hooks. Useful when working in a sensitive context where you'd rather not have prior lessons injected.
 

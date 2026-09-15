@@ -1,4 +1,6 @@
 import json
+import shlex
+import sys
 
 from tests.support import CONTEXT, SEARCH_PROMPT, SHORTLIST, IsolatedTestCase, make_entry, write_jsonl
 
@@ -133,6 +135,71 @@ class RetrievalScriptTests(IsolatedTestCase):
                 result = self.run_program(program, "--limit", "0", input_text="{}")
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("positive integer", result.stderr)
+
+    def test_both_retrieval_scripts_read_the_external_provider(self) -> None:
+        write_jsonl(self.provider_log, [make_entry(id="provider-hit")])
+        env = self.provider_env()
+
+        shortlist = self.run_program(
+            SHORTLIST,
+            "--limit",
+            "1",
+            input_text=json.dumps({"repo": "sample-api"}),
+            env=env,
+        )
+        prompt = self.run_program(
+            SEARCH_PROMPT,
+            input_text="Unexpected PostgreSQL timeout error",
+            env=env,
+        )
+
+        self.assertEqual(shortlist.returncode, 0, shortlist.stderr)
+        self.assertEqual(json.loads(shortlist.stdout)["id"], "provider-hit")
+        self.assertEqual(prompt.returncode, 0, prompt.stderr)
+        self.assertEqual(json.loads(prompt.stdout)["id"], "provider-hit")
+
+    def test_retrieval_scripts_reject_invalid_provider_entries_cleanly(self) -> None:
+        invalid = make_entry(confidence="not-a-number")
+        env = self.env.copy()
+        env["ENGINEERING_MEMLOG_PROVIDER_COMMAND"] = shlex.join(
+            [sys.executable, "-c", f"print({json.dumps(json.dumps(invalid))})"]
+        )
+
+        shortlist = self.run_program(
+            SHORTLIST, input_text=json.dumps({"repo": "sample-api"}), env=env
+        )
+        prompt = self.run_program(
+            SEARCH_PROMPT, input_text="PostgreSQL timeout error", env=env
+        )
+
+        for result in (shortlist, prompt):
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("invalid entry", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_retrieval_output_byte_limit_keeps_complete_jsonl_records(self) -> None:
+        first = make_entry(id="first")
+        second = make_entry(id="second")
+        write_jsonl(self.log, [first, second])
+        one_line_bytes = len((json.dumps(first) + "\n").encode("utf-8"))
+
+        shortlist = self.run_program(
+            SHORTLIST,
+            "--max-bytes",
+            str(one_line_bytes),
+            input_text=json.dumps({"repo": "sample-api"}),
+        )
+        prompt = self.run_program(
+            SEARCH_PROMPT,
+            "--max-bytes",
+            str(one_line_bytes),
+            input_text="PostgreSQL timeout error",
+        )
+
+        self.assertEqual(len(shortlist.stdout.splitlines()), 1)
+        self.assertEqual(json.loads(shortlist.stdout)["id"], "first")
+        self.assertEqual(len(prompt.stdout.splitlines()), 1)
+        self.assertEqual(json.loads(prompt.stdout)["id"], "first")
 
 
 if __name__ == "__main__":

@@ -54,14 +54,14 @@ Run it as a Bash command:
 memlog search "frozen-lockfile" --json --limit 10
 ```
 
-The file backend scans the JSONL log and ranks token coverage across fields,
+The built-in file backend scans the JSONL log and ranks token coverage across fields,
 with an exact-phrase boost. Search first with a concise error code, identifier,
 component plus symptom, or short error fragment. No match is normal.
 After one exact and at most two broader evidence-derived searches, stop. After
 a miss or unavailable backend, continue local diagnosis; neither condition may
 block debugging.
-The configured log is the sole store for the investigation; never inspect or
-write a default, raw, or alternate log as a fallback.
+The configured provider or file is the sole store for the investigation; never
+inspect or write a default, raw, or alternate log as a fallback.
 
 ## Append a lesson after you work
 
@@ -114,4 +114,12 @@ If a session needs to opt out or tune behavior:
 - `MEMLOG_PLUGIN_LIMIT=N` — number of session-start entries to inject (default 6)
 - `MEMLOG_PLUGIN_MIN_SCORE=F` — drop session-start entries below this score (default 1.5)
 - `MEMLOG_PLUGIN_PROMPT_LIMIT=N` — number of per-prompt hits to inject (default 5)
+- `MEMLOG_PLUGIN_MAX_CONTEXT_BYTES=N` — cap injected entry JSONL while preserving
+  complete records (default 65536 bytes)
 - `ENGINEERING_MEMLOG_FILE=PATH` — override the log file path
+- `ENGINEERING_MEMLOG_PROVIDER_COMMAND=COMMAND` — replace the file backend with
+  a protocol-v1 provider for both CLI operations and hooks; see `PROVIDERS.md`
+- `ENGINEERING_MEMLOG_PROVIDER_TIMEOUT_SECONDS=N` — bound one provider request
+  (default 10 seconds)
+- `ENGINEERING_MEMLOG_PROVIDER_MAX_RESPONSE_BYTES=N` — reject oversized provider
+  stdout/stderr (default 5242880 bytes)

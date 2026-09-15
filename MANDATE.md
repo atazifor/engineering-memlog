@@ -14,7 +14,7 @@ into your AI agent's always-loaded rules file (`CLAUDE.md`, `.cursorrules`,
 **On Claude Code with the plugin installed, you do not need to copy
 anything** — the SessionStart hook auto-loads this mandate each session.
 The paste below is optional: do it only if you want the mandate
-version-controlled in your repo (the hook detects the `v3` marker and
+version-controlled in your repo (the hook detects the `v4` marker and
 stays quiet so it never double-loads), or set `MEMLOG_MANDATE=manual` to
 turn auto-load off entirely. On other agents, copy everything between the
 `---` lines into your rules file.
@@ -23,13 +23,14 @@ turn auto-load off entirely. On other agents, copy everything between the
 
 ## Engineering memory
 
-<!-- engineering-memlog-mandate v3 -->
+<!-- engineering-memlog-mandate v4 -->
 
-This project keeps a shared, cross-project engineering log at
-`~/.engineering-memlog/entries.jsonl`, written and read with the `memlog`
-CLI. Treat the log as part of your working memory — it is prior knowledge,
-not documentation. The loop has two halves: read the log before you work,
-write to it after.
+This project keeps a shared, cross-project engineering log, written and read
+with the `memlog` CLI. Its default backend is
+`~/.engineering-memlog/entries.jsonl`; an explicitly configured provider may
+replace it. Treat the selected store as part of your working memory — it is
+prior knowledge, not documentation. The loop has two halves: read the log
+before you work, write to it after.
 
 ### Debug with the log
 
@@ -44,9 +45,10 @@ Without the skill, search the log when you:
 - have captured a concrete error, failure, or unexpected behavior, or
 - are about to propose a fix for a non-obvious bug.
 
-Search for the concrete signal in front of you. The file backend scans the JSONL
-log and ranks token coverage across fields, with an exact-phrase boost. Begin with
-a concise error identifier, component plus symptom, or short error fragment. Pass
+Search for the concrete signal in front of you. Memlog ranks token coverage across
+fields, with an exact-phrase boost; the built-in backend scans JSONL and a custom
+provider supplies the same entry stream. Begin with a concise error identifier,
+component plus symptom, or short error fragment. Pass
 `--json` to read results back as JSONL, one entry per line:
 
 ```bash
@@ -59,9 +61,9 @@ it, and reference an applied entry by ID or title. If nothing applies, stop
 searching after one exact and at most two broader evidence-derived queries,
 then continue local root-cause investigation. Use primary documentation or
 the web when the uncertainty is external or local evidence is insufficient.
-Never let a miss or backend outage block debugging. The configured log is the
-sole store for the investigation; never inspect or write a default, raw, or
-alternate log as a fallback.
+Never let a miss or backend outage block debugging. The configured provider or
+file is the sole store for the investigation; never inspect or write a default,
+raw, or alternate log as a fallback.
 
 ### Append a lesson — after you work
 
@@ -112,9 +114,10 @@ failed hypothesis as a solved lesson. Never include secrets in an entry.
    standalone CLI so `memlog` is on your PATH (see README).
 2. If the log lives anywhere other than the default
    (`~/.engineering-memlog/entries.jsonl`) — e.g. a team-shared path —
-   set `ENGINEERING_MEMLOG_FILE` in the environment. The mandate's bare
-   `memlog` commands then resolve to it automatically; nothing in the
-   pasted block needs editing.
+   set `ENGINEERING_MEMLOG_FILE` in the environment. To use a custom datastore,
+   set `ENGINEERING_MEMLOG_PROVIDER_COMMAND` as documented in `PROVIDERS.md`.
+   The mandate's bare `memlog` commands then resolve to the selected backend;
+   nothing in the pasted block needs editing.
 3. Paste the block above into the project's agent rules file.
 
 That's it. Every future agent session in that project follows the same

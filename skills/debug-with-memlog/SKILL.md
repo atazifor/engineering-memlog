@@ -38,8 +38,9 @@ Do not propose a fix yet.
 ## 2. Run the exact search
 
 Once there is a concrete signal, run one exact search before broad research or a
-fix attempt. The file backend scans the JSONL log and ranks token coverage across
-fields, with an extra boost for an exact phrase within one field. Use a concise,
+fix attempt. Memlog ranks token coverage across fields, with an extra boost for an
+exact phrase within one field. The built-in backend scans JSONL; a configured
+provider supplies the same entry stream. Use a concise,
 evidence-bearing query such as an error code, identifier, component plus symptom,
 or short error fragment:
 
@@ -77,9 +78,11 @@ the failure fingerprint.
 
 After `no_applicable_hit`, stop querying Memlog and continue systematic local
 diagnosis. After `backend_unavailable`, continue as well; report it distinctly from
-an empty result. The store selected by `ENGINEERING_MEMLOG_FILE` or `--file` is the
-sole store for this investigation. Never inspect, grep, list, or write a default,
-raw, or alternate log after a miss or outage, and never switch to a fallback store.
+an empty result. The provider selected by
+`ENGINEERING_MEMLOG_PROVIDER_COMMAND`, or otherwise the file selected by
+`ENGINEERING_MEMLOG_FILE` or `--file`, is the sole store for this investigation.
+Never inspect, grep, list, or write a default, raw, or alternate log after a miss
+or outage, and never switch to a fallback store.
 
 Use primary documentation when the uncertainty is inherently external or
 version-specific, or when local evidence is insufficient. General web searching is

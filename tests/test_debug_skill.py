@@ -74,10 +74,10 @@ class DebugSkillTests(unittest.TestCase):
         instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
         hook = (ROOT / "hooks" / "session-start.sh").read_text(encoding="utf-8")
 
-        self.assertIn("engineering-memlog-mandate v3", mandate)
+        self.assertIn("engineering-memlog-mandate v4", mandate)
         self.assertIn("engineering-memlog:debug-with-memlog", mandate)
         self.assertIn("engineering-memlog:debug-with-memlog", instructions)
-        self.assertIn('MANDATE_VERSION="v3"', hook)
+        self.assertIn('MANDATE_VERSION="v4"', hook)
         self.assertEqual(mandate.count("Without the skill, search the log when you:"), 1)
         self.assertNotIn("search the log before non-trivial work", hook)
 

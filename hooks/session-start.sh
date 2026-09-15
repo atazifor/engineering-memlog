@@ -31,11 +31,13 @@
 #
 # Env knobs:
 #   ENGINEERING_MEMLOG_FILE   — path to entries.jsonl (defaults set in scripts)
+#   ENGINEERING_MEMLOG_PROVIDER_COMMAND — optional external storage adapter
 #   MEMLOG_PLUGIN_DISABLE     — set to "1" to skip the whole hook (per-session)
 #   MEMLOG_MANDATE            — "auto" (default) | "manual" (never auto-load
 #                               the mandate; user owns the paste instead)
 #   MEMLOG_PLUGIN_LIMIT       — top-K ranked entries (default 6)
 #   MEMLOG_PLUGIN_MIN_SCORE   — minimum score to include (default 1.5)
+#   MEMLOG_PLUGIN_MAX_CONTEXT_BYTES — max JSONL bytes injected (default 65536)
 
 set -euo pipefail
 
@@ -54,7 +56,7 @@ PROJECT_CWD="${CLAUDE_PROJECT_DIR:-${PWD:-$(pwd)}}"
 # an older pasted copy. The marker string lives in MANDATE.md's block, so a
 # repo that pasted v2 is detected; one stuck on an older (or no) marker is
 # treated as "not current" and the hook loads the fresh mandate anyway.
-MANDATE_VERSION="v3"
+MANDATE_VERSION="v4"
 MANDATE_MARKER="engineering-memlog-mandate ${MANDATE_VERSION}"
 
 # ---------------------------------------------------------------------------
@@ -86,14 +88,23 @@ fi
 # Part 2: ranked prior lessons (best-effort; never blocks the mandate)
 # ---------------------------------------------------------------------------
 SHORTLIST=""
+READ_WARNING=""
 LIMIT="${MEMLOG_PLUGIN_LIMIT:-6}"
 MIN_SCORE="${MEMLOG_PLUGIN_MIN_SCORE:-1.5}"
+MAX_CONTEXT_BYTES="${MEMLOG_PLUGIN_MAX_CONTEXT_BYTES:-65536}"
 CTX="${PLUGIN_ROOT}/scripts/memlog-context"
 RANK="${PLUGIN_ROOT}/scripts/memlog-shortlist"
 if [[ -x "$CTX" && -x "$RANK" ]]; then
+  set +e
   SHORTLIST="$("$CTX" --cwd "$PROJECT_CWD" 2>/dev/null \
-                | "$RANK" --limit "$LIMIT" --min-score "$MIN_SCORE" 2>/dev/null \
-                || true)"
+                | "$RANK" --limit "$LIMIT" --min-score "$MIN_SCORE" \
+                    --max-bytes "$MAX_CONTEXT_BYTES" 2>/dev/null)"
+  READ_STATUS=$?
+  set -e
+  if [[ "$READ_STATUS" -ne 0 ]]; then
+    SHORTLIST=""
+    READ_WARNING="⚠ **memlog read backend unavailable** — automatic recall could not query the configured store. Continue local diagnosis; do not treat this as a no-match result and do not switch to another log."
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -115,6 +126,16 @@ BODY=""
 
 if [[ -n "$CLI_WARNING" ]]; then
   BODY="$CLI_WARNING"
+fi
+
+if [[ -n "$READ_WARNING" ]]; then
+  if [[ -n "$BODY" ]]; then
+    BODY="${BODY}
+
+${READ_WARNING}"
+  else
+    BODY="$READ_WARNING"
+  fi
 fi
 
 if [[ -n "$MANDATE_BLOCK" ]]; then
