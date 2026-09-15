@@ -20,10 +20,19 @@ REPO_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 SRC := $(REPO_DIR)/memlog
 DEST := $(BINDIR)/memlog
 
-.PHONY: install uninstall doctor test
+.PHONY: install uninstall doctor test demo check-docs check
 
 test:
 	@PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+
+demo:
+	@./demo/run-baseline.sh
+	@./demo/run-demo.sh
+
+check-docs:
+	@PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_discoverability.DocumentationAssetTests -v
+
+check: test demo
 
 install:
 	@command -v python3 >/dev/null 2>&1 || { echo "✗ python3 not found — memlog needs Python 3.8+"; exit 1; }

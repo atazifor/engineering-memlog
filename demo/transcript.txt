@@ -1,0 +1,54 @@
+Engineering Memlog 0.2.0 reproducible demo
+Captured: 2026-09-15
+Compatible Claude Code version checked locally: 2.1.272
+Note: bracketed skill decisions are narrated; every test and Memlog result below is real command output.
+
+=== 1 / 8  Reproduce the concrete failure ===
+$ python3 -m unittest -q
+AssertionError: 'user_profile-name' != 'user-profile-name'
+FAIL: underscores remain in the generated slug
+
+=== 2 / 8  Search memory using evidence from the failure ===
+$ memlog search "slugify underscore separator"
+- 2026-09-15T12:00:00Z | Slugify must normalize underscores and whitespace together
+  repo=sanitized-demo service=routing env=local
+  tags=python, slugify, normalization, underscores
+  problem=Route slug test expected user-profile-name but received user_profile-name.
+
+=== 3 / 8  Treat recall as a hypothesis ===
+[skill] Candidate says spaces-only replacement misses underscores.
+[skill] Inspect current code; do not apply memory blindly.
+$ grep replace slugify.py
+    return value.strip().lower().replace(" ", "-")
+MATCH: current implementation has the remembered failure mode
+
+=== 4 / 8  Apply the smallest causal fix ===
+$ cp slugify-fixed.py slugify.py
+Changed the separator rule from a literal space to [whitespace_or_underscore]+.
+
+=== 5 / 8  Verify the original failure ===
+$ python3 -m unittest -q
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK
+PASS: mixed spaces and underscores normalize to one hyphen
+
+=== 6 / 8  Save only after verification ===
+$ memlog add --json <verified-lesson>
+Appended memory entry: Verified slug separator normalization in the demo
+
+=== 7 / 8  A later session can retrieve the verified lesson ===
+$ memlog search "verified slug separator regression" --limit 1
+- 2026-09-15T19:04:30Z | Verified slug separator normalization in the demo
+  repo=sanitized-demo service=routing env=local
+  tags=python, slugify, normalization, regression-test
+  problem=The slugify regression left underscores in mixed-separator input.
+
+=== 8 / 8  A miss continues the investigation ===
+$ memlog search "postgres deadlock transaction retry"
+No matches found.
+[skill] No match is not a stop condition: return to local evidence,
+[skill] then use primary documentation or the web if uncertainty is external.
+
+Demo complete. The disposable store is removed on exit.

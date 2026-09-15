@@ -1,0 +1,26 @@
+Engineering Memlog no-memory baseline
+Captured: 2026-09-15
+Compatible Claude Code version checked locally: 2.1.272
+Note: this records real test and shell output for the same fixture; it is not a model-performance benchmark.
+
+=== 1 / 4  Reproduce without memory ===
+$ python3 -m unittest -q
+AssertionError: 'user_profile-name' != 'user-profile-name'
+
+=== 2 / 4  Re-derive the cause from current code ===
+$ grep replace slugify.py
+    return value.strip().lower().replace(" ", "-")
+OBSERVATION: the implementation replaces spaces but not underscores.
+
+=== 3 / 4  Apply the locally derived fix ===
+$ cp slugify-fixed.py slugify.py
+
+=== 4 / 4  Verify ===
+$ python3 -m unittest -q
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK
+PASS: the fix works, but no prior lesson shortened the diagnosis.
+
+Baseline complete. The disposable workspace is removed on exit.

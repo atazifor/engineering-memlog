@@ -24,6 +24,8 @@ All notable changes to engineering-memlog are documented here. Versions follow
   with a runnable JSONL adapter example and explicit no-fallback behavior.
 - Regression coverage for the CLI, hooks, retrieval ranking, skill contract,
   schema integrity, provider failures, and clean plugin installation.
+- A reproducible debugging demo, 64-second visual walkthrough, factual tool
+  comparison, security policy, contribution guide, and focused issue templates.
 
 ### Changed
 
