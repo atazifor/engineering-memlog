@@ -93,26 +93,36 @@ class DocumentationAssetTests(unittest.TestCase):
         self.assertIn("Memlog is not an error log", readme)
         self.assertIn("does not perform\nembedding or semantic search", readme)
 
-    def test_readme_leads_with_the_product_boundary_and_six_grounded_uses(self) -> None:
+    def test_readme_leads_with_the_product_boundary_and_six_recognizable_pains(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         use_cases = readme[
-            readme.index("## When Memlog earns its keep") : readme.index(
+            readme.index("## You probably need Memlog if") : readme.index(
                 "## Agent support"
             )
         ]
 
         self.assertLess(readme.index("## A concrete example"), readme.index("assets/memlog-demo.gif"))
         self.assertLess(
-            readme.index("## When Memlog earns its keep"),
+            readme.index("## You probably need Memlog if"),
             readme.index("## A concrete example"),
         )
         self.assertLess(readme.index("## How it works"), readme.index("## Install"))
         self.assertLess(
-            readme.index("## When Memlog earns its keep"), readme.index("## Install")
+            readme.index("## You probably need Memlog if"), readme.index("## Install")
         )
         self.assertNotIn("compatible coding agents", readme[:1000].lower())
         self.assertIn("non-obvious, reusable lessons", readme[:1000])
         self.assertEqual(use_cases.count("- **"), 6)
+        for pain in (
+            "we solved this before",
+            "one-line fix took hours",
+            "new agent session starts from zero",
+            "across projects",
+            "misses your reality",
+            "memories do not move with you",
+        ):
+            with self.subTest(pain=pain):
+                self.assertIn(pain, use_cases.lower())
         for stack_specific_term in (
             "tailwind",
             "node 18",

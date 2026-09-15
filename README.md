@@ -17,34 +17,32 @@ the root cause and fix have been verified.
 [![Codex skill](https://img.shields.io/badge/Codex%20skill-live%20tested-10a37f)](evals/codex-skill.md)
 ![Dependencies: standard library only](https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen)
 
-## When Memlog earns its keep
+## You probably need Memlog if
 
-Memlog is useful when the diagnosis was expensive but the lesson is portable.
-These patterns recur across languages, frameworks, and repositories:
+- **You keep saying, “We solved this before.”** The failure is familiar, but the
+  useful explanation is somewhere in an old conversation, issue, or repository
+  that nobody wants to search from scratch.
+- **A one-line fix took hours to discover.** Source control kept the change, but
+  not the misleading symptoms, eliminated assumptions, root cause, or prevention
+  rule that made the investigation expensive.
+- **Every new agent session starts from zero.** The previous session found the
+  real cause, but the next agent sees only the current code and repeats the same
+  investigation.
+- **The same class of failure appears across projects.** A lesson learned in one
+  service, application, or repository would have shortened work in another, but
+  project-scoped notes never put them together.
+- **General documentation gives the right theory but misses your reality.** The
+  answer depends on the versions, environment, infrastructure, or conventions
+  your projects actually use.
+- **You move between coding agents and their memories do not move with you.** A
+  useful lesson captured in one tool is unavailable when another tool encounters
+  the same evidence.
 
-- **The visible error points at the wrong layer.** The failure is reported where
-  it surfaces, while the real cause is earlier in the request, data, or control
-  flow.
-- **It works locally but fails elsewhere.** CI, staging, or production differs
-  in runtime, configuration, dependencies, permissions, or data behavior.
-- **Each component looks correct in isolation.** The defect lives in the
-  contract between a client, service, database, queue, or external system.
-- **Generated or cached state outlives the source that created it.** The code is
-  correct, but stale artifacts keep producing a failure that appears current.
-- **A framework default silently overrides the intended behavior.** An omitted,
-  zero, false, empty, or missing value is interpreted differently from what the
-  application expects.
-- **The application never receives the operation you are debugging.** A browser,
-  proxy, gateway, policy, or transport blocks or rewrites it before the relevant
-  code runs.
-
-The [sanitized example lessons](examples/entries.jsonl) show concrete instances
-of each pattern without making the README specific to one stack.
-
-Do not save typos, syntax mistakes, routine command failures, transient errors,
-retries, search misses, speculative diagnoses, failed hypotheses, or unverified
-fixes. If the lesson is obvious from the error and the adjacent line of code, it
-does not belong in Memlog.
+If these situations are rare and most failures are obvious from the error and
+nearby code, you probably do not need Memlog. It is deliberately for expensive,
+non-obvious lessons worth carrying into a future investigation—not typos,
+transient failures, speculative diagnoses, or a record of every fix. The
+[sanitized examples](examples/entries.jsonl) show what qualifies in practice.
 
 ## A concrete example
 
