@@ -1,4 +1,4 @@
-Engineering Memlog 0.2.0 reproducible demo
+Engineering Memlog 0.3.0 reproducible demo
 Captured: 2026-09-15
 Compatible Claude Code version checked locally: 2.1.272
 Note: adapted and sanitized from a real Memlog lesson; bracketed skill decisions are narrated, while every test and Memlog result is real command output.

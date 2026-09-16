@@ -5,6 +5,8 @@ All notable changes to engineering-memlog are documented here. Versions follow
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-16
+
 ### Added
 
 - A sanitized demo adapted from a real integration lesson where response parsing
@@ -28,6 +30,14 @@ All notable changes to engineering-memlog are documented here. Versions follow
 - The README now distinguishes live-tested skill support from automatic hook
   support and does not advertise automatic Codex hooks after their live gate
   failed.
+
+### Fixed
+
+- Claude Code no longer runs a second, failing copy of every hook. It loads
+  `hooks/hooks.json` alongside the manifest's `hooks` path and leaves
+  `${PLUGIN_ROOT}` empty, so the Codex manifest added after 0.2.0 ran against
+  `/hooks/...` and reported a blocking error after each Bash command. The Codex
+  manifest is now `hooks/codex-hooks.json`, which no host loads.
 
 ## [0.2.0] — 2026-09-15
 
@@ -74,6 +84,7 @@ All notable changes to engineering-memlog are documented here. Versions follow
   symptom-triggered UserPromptSubmit recall, and `/recall`.
 - The original append-only JSONL CLI and agent mandate.
 
-[Unreleased]: https://github.com/atazifor/engineering-memlog/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/atazifor/engineering-memlog/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/atazifor/engineering-memlog/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/atazifor/engineering-memlog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/atazifor/engineering-memlog/releases/tag/v0.1.0

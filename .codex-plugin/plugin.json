@@ -1,6 +1,6 @@
 {
   "name": "engineering-memlog",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Recall verified engineering lessons during systematic debugging and preserve only reusable, verified resolutions.",
   "author": {
     "name": "atazifor",

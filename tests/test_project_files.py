@@ -17,7 +17,7 @@ class ProjectFileTests(unittest.TestCase):
             ROOT / ".claude-plugin" / "marketplace.json",
             ROOT / ".agents" / "plugins" / "marketplace.json",
             ROOT / ".codex-plugin" / "plugin.json",
-            ROOT / "hooks" / "hooks.json",
+            ROOT / "hooks" / "codex-hooks.json",
             ROOT / "hooks" / "claude-hooks.json",
         ):
             with self.subTest(path=path):
@@ -25,7 +25,7 @@ class ProjectFileTests(unittest.TestCase):
 
     def test_host_hook_manifests_use_supported_failure_events(self) -> None:
         codex = json.loads(
-            (ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8")
+            (ROOT / "hooks" / "codex-hooks.json").read_text(encoding="utf-8")
         )["hooks"]
         claude = json.loads(
             (ROOT / "hooks" / "claude-hooks.json").read_text(encoding="utf-8")
@@ -40,6 +40,33 @@ class ProjectFileTests(unittest.TestCase):
                     "post-tool-recall.py",
                     registration["hooks"][0]["command"],
                 )
+
+    def test_claude_code_loads_one_hook_manifest_with_its_placeholders(self) -> None:
+        # Claude Code loads hooks/hooks.json in addition to the manifest's
+        # "hooks" path and leaves any other $VAR empty. A second manifest there
+        # runs every hook twice, and one written for another host runs as
+        # "/hooks/<script>" and fails.
+        manifest_hooks = json.loads(
+            (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )["hooks"]
+        loaded = (ROOT / manifest_hooks).resolve()
+        default = ROOT / "hooks" / "hooks.json"
+        self.assertTrue(loaded.is_file())
+        self.assertTrue(
+            not default.exists() or default.resolve() == loaded,
+            "hooks/hooks.json would load alongside the manifest hook file",
+        )
+        allowed = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PLUGIN_DATA", "CLAUDE_PROJECT_DIR"}
+        hooks = json.loads(loaded.read_text(encoding="utf-8"))["hooks"]
+        for event, registrations in hooks.items():
+            for registration in registrations:
+                for hook in registration["hooks"]:
+                    command = hook.get("command", "")
+                    with self.subTest(event=event, command=command):
+                        self.assertLessEqual(
+                            set(re.findall(r"\$\{?(\w+)", command)), allowed
+                        )
+                        self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)
 
     def test_manifests_route_to_their_host_contract(self) -> None:
         claude = json.loads(
@@ -75,7 +102,7 @@ class ProjectFileTests(unittest.TestCase):
                 ROOT / ".codex-plugin" / "plugin.json",
             )
         }
-        self.assertEqual(versions, {"0.2.0"})
+        self.assertEqual(versions, {"0.3.0"})
 
     def test_portable_manifest_matches_published_schema_constraints(self) -> None:
         manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
