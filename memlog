@@ -28,7 +28,7 @@ from memlog_provider import ProviderError, append_entry, iter_entries, scan_reco
 from memlog_retrieval import rank_entries
 from memlog_schema import CURRENT_SCHEMA_VERSION, entry_validation_errors
 
-MEMLOG_VERSION = "0.2.0"
+MEMLOG_VERSION = "0.3.0"
 
 DEFAULT_DATA_FILE = Path(
     os.environ.get(

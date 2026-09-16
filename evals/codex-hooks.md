@@ -49,6 +49,12 @@ These controlled results cover SessionStart/UserPromptSubmit before the first
 response and a non-zero PostToolUse event without a manual search obscuring the
 outcome.
 
+## Current packaging
+
+Since 0.3.0 the Codex-shaped manifest is `hooks/codex-hooks.json`, because
+Claude Code also loads `hooks/hooks.json`. No manifest references it, so a rerun
+of this evaluation must first declare or relocate it.
+
 ## Reproductions
 
 The same absence had already been reproduced with:
