@@ -1,14 +1,15 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "engineering-memlog",
-  "description": "Engineering memory for AI coding agents — a structured cross-project log, a deliberately dumb CLI, and a Claude Code plugin that pairs systematic debugging with bounded recall.",
+  "description": "A marketplace for Engineering Memlog, which gives AI coding agents durable memory of verified debugging lessons across projects.",
   "owner": {
     "name": "atazifor"
   },
   "plugins": [
     {
       "name": "engineering-memlog",
-      "description": "Pairs a systematic debugging skill with bounded recall and a bundled CLI. Reproduces failures, validates matches as hypotheses, continues local diagnosis on a miss, verifies fixes, and includes /recall for explicit searches.",
+      "displayName": "Engineering Memlog",
+      "description": "Gives Claude a durable memory of verified debugging lessons across projects, so it can reuse hard-won knowledge instead of starting over.",
       "author": {
         "name": "atazifor"
       },

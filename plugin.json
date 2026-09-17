@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "engineering-memlog",
-  "version": "0.3.0",
-  "description": "Recall verified engineering lessons during systematic debugging and preserve only reusable, verified resolutions.",
+  "version": "0.3.1",
+  "description": "Gives coding agents a durable memory of verified debugging lessons across projects, so they can reuse hard-won knowledge instead of starting over.",
   "author": {
     "name": "atazifor"
   },

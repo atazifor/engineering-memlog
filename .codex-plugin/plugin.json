@@ -1,7 +1,7 @@
 {
   "name": "engineering-memlog",
-  "version": "0.3.0",
-  "description": "Recall verified engineering lessons during systematic debugging and preserve only reusable, verified resolutions.",
+  "version": "0.3.1",
+  "description": "Gives coding agents a durable memory of verified debugging lessons across projects, so they can reuse hard-won knowledge instead of starting over.",
   "author": {
     "name": "atazifor",
     "url": "https://github.com/atazifor"
@@ -16,8 +16,8 @@
   ],
   "interface": {
     "displayName": "Engineering Memlog",
-    "shortDescription": "Recall and preserve verified debugging lessons",
-    "longDescription": "Search prior engineering lessons when a concrete failure appears, validate them against current evidence, and save only non-obvious resolutions after verification.",
+    "shortDescription": "Reuse verified debugging lessons across projects",
+    "longDescription": "Gives coding agents durable memory of hard-won debugging lessons across projects. Search prior verified causes, test them against current evidence, and save only non-obvious resolutions after verification.",
     "developerName": "atazifor",
     "category": "Developer Tools",
     "capabilities": [

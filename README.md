@@ -230,7 +230,7 @@ strings. The schema validates structure, not secret content. See the full
   [discoverability audit](docs/discoverability-audit.md).
 - **Contribute:** [retrieval roadmap](docs/retrieval-roadmap.md),
   [contributing guide](CONTRIBUTING.md), [changelog](CHANGELOG.md), and
-  [v0.2.0 notes](releases/v0.2.0.md).
+  [latest release notes](releases/v0.3.1.md).
 
 Engineering Memlog is deliberately narrow: one structured lesson format, one
 debugging workflow, a zero-configuration local backend, and an escape hatch for

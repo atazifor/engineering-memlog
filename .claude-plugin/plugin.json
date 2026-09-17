@@ -1,7 +1,7 @@
 {
   "name": "engineering-memlog",
-  "version": "0.3.0",
-  "description": "Debug with verified engineering memory using a systematic skill, bounded automatic recall, pluggable storage, and an integrity-checked bundled CLI.",
+  "version": "0.3.1",
+  "description": "Gives Claude a durable memory of verified debugging lessons across projects, so it can reuse hard-won knowledge instead of starting over.",
   "author": {
     "name": "atazifor"
   },

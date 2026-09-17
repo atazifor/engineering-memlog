@@ -2,7 +2,7 @@
 
 ## Supported version
 
-Security fixes are made against the latest 0.2.x release line and the default
+Security fixes are made against the latest 0.3.x release line and the default
 branch. Upgrade to the latest patch before reporting an issue already fixed
 there.
 
