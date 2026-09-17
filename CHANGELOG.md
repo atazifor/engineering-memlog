@@ -5,6 +5,21 @@ All notable changes to engineering-memlog are documented here. Versions follow
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-09-17
+
+### Changed
+
+- Rewrote the compact Claude Code plugin description around the user outcome:
+  durable, verified debugging memory across projects instead of implementation
+  details that only made sense after learning how Memlog works.
+- Aligned the Claude marketplace entry, portable Agent Plugins manifest, and
+  Codex plugin metadata around the same product promise, while keeping the
+  host-specific wording accurate.
+- Added the human-readable `Engineering Memlog` marketplace display name and
+  made the Codex detail copy lead with cross-project reuse.
+- Updated the README release link and supported security release line for the
+  current patch series.
+
 ## [0.3.0] — 2026-09-16
 
 ### Added
@@ -84,7 +99,8 @@ All notable changes to engineering-memlog are documented here. Versions follow
   symptom-triggered UserPromptSubmit recall, and `/recall`.
 - The original append-only JSONL CLI and agent mandate.
 
-[Unreleased]: https://github.com/atazifor/engineering-memlog/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/atazifor/engineering-memlog/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/atazifor/engineering-memlog/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/atazifor/engineering-memlog/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/atazifor/engineering-memlog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/atazifor/engineering-memlog/releases/tag/v0.1.0

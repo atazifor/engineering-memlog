@@ -102,7 +102,47 @@ class ProjectFileTests(unittest.TestCase):
                 ROOT / ".codex-plugin" / "plugin.json",
             )
         }
-        self.assertEqual(versions, {"0.3.0"})
+        self.assertEqual(versions, {"0.3.1"})
+
+    def test_plugin_descriptions_lead_with_the_user_outcome(self) -> None:
+        claude = json.loads(
+            (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        claude_marketplace = json.loads(
+            (ROOT / ".claude-plugin" / "marketplace.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        codex = json.loads(
+            (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        portable = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
+
+        claude_description = claude["description"]
+        agent_description = portable["description"]
+        self.assertEqual(
+            claude_marketplace["plugins"][0]["description"], claude_description
+        )
+        self.assertEqual(codex["description"], agent_description)
+        self.assertEqual(
+            claude_marketplace["plugins"][0]["displayName"], "Engineering Memlog"
+        )
+
+        for description in (claude_description, agent_description):
+            with self.subTest(description=description):
+                self.assertGreaterEqual(len(description), 50)
+                self.assertLessEqual(len(description), 200)
+                self.assertIn("durable memory", description)
+                self.assertIn("verified debugging lessons", description)
+                self.assertIn("across projects", description)
+                self.assertIn("instead of starting over", description)
+                for implementation_detail in (
+                    "systematic skill",
+                    "bounded automatic recall",
+                    "pluggable storage",
+                    "bundled CLI",
+                ):
+                    self.assertNotIn(implementation_detail, description)
 
     def test_portable_manifest_matches_published_schema_constraints(self) -> None:
         manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
